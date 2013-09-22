@@ -60,9 +60,21 @@ class Evaluator(ctx: Context, prog: Program) {
 
     case ArrayRead(arr, index) => IntValue(evalExpr(ectx, arr).asArray.getIndex(evalExpr(ectx, index).asInt))
     case ArrayLength(arr) => IntValue(evalExpr(ectx, arr).asArray.size)
+    
     case MethodCall(obj, meth, args) => ???
+      
     case Identifier(name) => ectx.getVariable(name)
-    case New(tpe) => ??? // ObjectValue declare/setField
+    case New(tpe) => // ObjectValue declare/setField
+      val cd = prog.classes.filter(_.id.value == tpe.value).head
+      var obj = new ObjectValue(cd)
+      cd.vars.foreach(v => obj.declareField(v.id.value))
+      cd.vars.foreach(v => v.tpe match {
+        case IntType() =>  obj.setField(v.id.value, IntValue(0))
+        case BooleanType() => obj.setField(v.id.value, BoolValue(false))
+        case _ => 
+      })
+      obj
+      
     case This() => ???
     case NewIntArray(size) => ???
   }
