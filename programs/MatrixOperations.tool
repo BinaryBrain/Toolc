@@ -17,6 +17,8 @@ class Test {
 		println("m1: " + matrix1.toString());
 		matrix2 = this.createMatrix2();
 		println("m2: " + matrix2.toString());
+		println("m1 + m1 = " + matrix1.plus(matrix1).toString());
+		println("m1 * m2 = " + matrix1.times(matrix2).toString());
 		return true;
 	}
 	
@@ -96,17 +98,44 @@ class Matrix {
 		return this;
 	}
 	
-	def plus(m: Matrix): Matrix = {
+	def plus(mat: Matrix): Matrix = {
+		var res: Matrix;
 		var i: Int;
 		var j: Int;
-		var res: Matrix;
-		var value: Int;
 		
 		res = new Matrix().init(nbRows, nbCols);
+		i = 0;
 		while(i < nbRows) {
+			j = 0;
 			while(j < nbCols) {
-				value = this.at(i,j) + m.at(i,j);
-				res = res.setAt(i,j, value);
+				res = res.setAt(i,j, this.at(i,j) + mat.at(i,j));
+				j = j + 1;
+			}
+			i = i + 1;
+		}
+		
+		return res;
+	}
+	
+	def times(mat: Matrix): Matrix = {
+		var res: Matrix;
+		var i: Int;
+		var j: Int;
+		var k: Int;
+		var sum: Int;
+		
+		res = new Matrix().init(nbRows, mat.getNbCols());
+		i = 0;
+		while(i < nbRows) {
+			j = 0;
+			while(j < mat.getNbCols()) {
+				k = 0;
+				sum = 0;
+				while(k < nbCols) {
+					sum = sum + this.at(i,k) * mat.at(k,j);
+					k = k + 1;
+				}
+				res = res.setAt(i,j, sum);
 				j = j + 1;
 			}
 			i = i + 1;
