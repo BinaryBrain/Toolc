@@ -27,7 +27,11 @@ class Evaluator(ctx: Context, prog: Program) {
         }
       }
     case While(expr, stat) => while (evalExpr(ectx, expr).asBool) evalStatement(ectx, stat)
-    case Println(expr) => println(evalExpr(ectx, expr).asString)
+    case Println(expr) => evalExpr(ectx, expr) match {
+      case StringValue(s) => println(s)
+      case IntValue(v) => println(v)
+      case _ => 
+    }
     case Assign(id, expr) => ectx.setVariable(id.value, evalExpr(ectx, expr))
     case ArrayAssign(id, index, expr) => ectx.getVariable(id.value).asArray.
     									setIndex(evalExpr(ectx, index).asInt, evalExpr(ectx, expr).asInt)
@@ -42,7 +46,20 @@ class Evaluator(ctx: Context, prog: Program) {
     case False() => BoolValue(false)
     case And(lhs, rhs) => BoolValue(evalExpr(ectx, lhs).asBool && evalExpr(ectx, rhs).asBool)
     case Or(lhs, rhs) => BoolValue(evalExpr(ectx, lhs).asBool || evalExpr(ectx, rhs).asBool)
-    case Plus(lhs, rhs) => IntValue(evalExpr(ectx, lhs).asInt + evalExpr(ectx, rhs).asInt)
+    case Plus(lhs, rhs) => 
+      
+      var res: Value = null
+      val pair = (evalExpr(ectx, lhs), evalExpr(ectx, lhs)) match {
+      case (IntValue(l), IntValue(r)) => res = IntValue(l + r)
+      case (IntValue(l), StringValue(r)) => res = StringValue(l + r)
+      case (StringValue(l), IntValue(r)) => res = StringValue(l + r)
+      case (StringValue(l), StringValue(r)) => res = StringValue(l + r)
+      case _ => 
+    }
+    	
+      res
+
+      
     case Minus(lhs, rhs) => IntValue(evalExpr(ectx, lhs).asInt - evalExpr(ectx, rhs).asInt)
     case Times(lhs, rhs) => IntValue(evalExpr(ectx, lhs).asInt * evalExpr(ectx, rhs).asInt)
     case Div(lhs, rhs) => IntValue(evalExpr(ectx, lhs).asInt / evalExpr(ectx, rhs).asInt)
@@ -61,22 +78,30 @@ class Evaluator(ctx: Context, prog: Program) {
     case ArrayRead(arr, index) => IntValue(evalExpr(ectx, arr).asArray.getIndex(evalExpr(ectx, index).asInt))
     case ArrayLength(arr) => IntValue(evalExpr(ectx, arr).asArray.size)
     
-    case MethodCall(obj, meth, args) => ???
+    case MethodCall(obj, meth, args) =>
+      val objValue = evalExpr(ectx, obj).asObject
+      val md = findMethod(objValue.cd, meth.value)
+      val mcxt = new MethodContext(objValue)
+      md.args.foreach(arg => mcxt.declareVariable(arg.id.value))
+      val pairs = md.args.zip(args)
+      pairs.foreach(pair => mcxt.setVariable(pair._1.id.value, evalExpr(ectx, pair._2)))
+      md.vars.foreach(v => mcxt.declareVariable(v.id.value))
+      md.stats.foreach(evalStatement(mcxt, _))
+      evalExpr(mcxt, md.retExpr)
       
     case Identifier(name) => ectx.getVariable(name)
     case New(tpe) => // ObjectValue declare/setField
-      val cd = prog.classes.filter(_.id.value == tpe.value).head
+      val cd = findClass(tpe.value);
       var obj = new ObjectValue(cd)
-      cd.vars.foreach(v => obj.declareField(v.id.value))
-      cd.vars.foreach(v => v.tpe match {
-        case IntType() =>  obj.setField(v.id.value, IntValue(0))
-        case BooleanType() => obj.setField(v.id.value, BoolValue(false))
-        case _ => 
-      })
+      fieldsOfClass(cd).foreach(obj.declareField(_))
       obj
-      
-    case This() => ???
-    case NewIntArray(size) => ???
+    case This() => ectx match {
+      case mctx: MethodContext => mctx.obj
+      case _ => fatal("You can't use this in main method")
+    }
+    case NewIntArray(size) => 
+      val sizeInt = evalExpr(ectx, size).asInt
+      new ArrayValue(new Array[Int](sizeInt), sizeInt)
   }
 
   // Define the scope of evaluation, with methods to access/declare/set local variables(or arguments)
@@ -122,7 +147,14 @@ class Evaluator(ctx: Context, prog: Program) {
 
   // Helper functions to query the current program
   def findMethod(cd: ClassDecl, name: String): MethodDecl = {
-    cd.methods.find(_.id.value == name).getOrElse(fatal("Unknown method " + cd.id + "." + name))
+    cd.methods.find(_.id.value == name) match {
+      case Some(v) => v
+      case None =>
+      	cd.parent match {
+      	  case Some(p) => findMethod(findClass(p.value), name)
+      	  case None => fatal("Unknow method");
+      	}
+    }
   }
 
   def findClass(name: String): ClassDecl = {
