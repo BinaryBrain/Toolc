@@ -15,9 +15,10 @@ class Calculator {
 		var dummy: Stackable;
 		
 		st = new Stack().init();
-		
+		st = st.show();
 		println("Push 3 then push 5");
 		st = st.push(new Integer().init(3));
+		st = st.show();
 		st = st.push(new Integer().init(5));
 		st = st.show();
 		
@@ -107,7 +108,7 @@ class Stack {
 	
 	def show(): Stack = {
 		if(isEmpty) {
-			println("Stack = ");
+			println("Stack Empty ");
 		}
 		else {
 			println("Stack = " + top.toString());
@@ -175,6 +176,7 @@ class Integer extends Stackable {
 		}
 		else {
 			previous = st.getTop();
+			isBottom = false;
 		}
 		st = st.setTop(this);
 		return this;

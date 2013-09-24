@@ -49,7 +49,7 @@ class Evaluator(ctx: Context, prog: Program) {
     case Plus(lhs, rhs) => 
       
       var res: Value = null
-      val pair = (evalExpr(ectx, lhs), evalExpr(ectx, lhs)) match {
+      val pair = (evalExpr(ectx, lhs), evalExpr(ectx, rhs)) match {
       case (IntValue(l), IntValue(r)) => res = IntValue(l + r)
       case (IntValue(l), StringValue(r)) => res = StringValue(l + r)
       case (StringValue(l), IntValue(r)) => res = StringValue(l + r)
