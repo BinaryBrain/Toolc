@@ -1,7 +1,7 @@
 object Primes {
     def main(): Unit = {
         if(new Computer().run()) {
-            println("Done");
+            println("INFO: Done");
         }
     }
 }
@@ -12,18 +12,18 @@ class Computer {
         var primes: Int[];
         var i: Int;
         
-        println("Running...");
+        println("INFO: Running...");
         
-        n = 1000000;
+        n = 20;
         
         primes = this.findAll(n);
         
         i = 0;
         
-        /*while(i < primes.length) {
+        while(i < primes.length) {
             println(primes[i]);
             i = i+1;
-        }*/
+        }
         
         return true;
     }
@@ -36,7 +36,7 @@ class Computer {
         
         primes = new Int[n];
         
-        if(0<n) {
+        if(1<n) {
             primes[0] = 2;
             primes[1] = 3;
             found = 2;
@@ -54,7 +54,7 @@ class Computer {
             }
         }
         else {
-            println("Error: 'n' must be > 0");
+            println("ERROR: 'n' must be greater than 1");
         }
         
         return primes;
