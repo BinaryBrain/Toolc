@@ -40,23 +40,23 @@ class MazeArray {
     // Drawing characters. I use Unicode, but you may want to replace that by
     // something else if it breaks (note that scala.io.Source handles it just
     // fine). Use the alternatives otherwise.
-    pipeChar = "┃";   // "|";
-    horzChar = "━";   // "-";
-    plusChar = "╋";   // "+";
-    t1Char   = "┳";   // "+";
-    t2Char   = "┫";   // "+";
-    t3Char   = "┻";   // "+";
-    t4Char   = "┣";   // "+";
-    l1Char   = "┗";   // "+";
-    l2Char   = "┏";   // "+";
-    l3Char   = "┓";   // "+";
-    l4Char   = "┛";   // "+";
-    i1Char   = "╻";   // "+";
-    i2Char   = "╸";   // "+";
-    i3Char   = "╹";   // "+";
-    i4Char   = "╺";   // "+";
-    arrBdyChar = " "; // "=";
-    arrTipChar = " "; // ">";
+    pipeChar = "|";   // "|";
+    horzChar = "-";   // "-";
+    plusChar = "+";   // "+";
+    t1Char   = "+";   // "+";
+    t2Char   = "+";   // "+";
+    t3Char   = "+";   // "+";
+    t4Char   = "+";   // "+";
+    l1Char   = "+";   // "+";
+    l2Char   = "+";   // "+";
+    l3Char   = "+";   // "+";
+    l4Char   = "+";   // "+";
+    i1Char   = "+";   // "+";
+    i2Char   = "+";   // "+";
+    i3Char   = "+";   // "+";
+    i4Char   = "+";   // "+";
+    arrBdyChar = "="; // "=";
+    arrTipChar = ">"; // ">";
 
     size = sze;
     prng = new PseudoRandomNumberGenerator().init();
