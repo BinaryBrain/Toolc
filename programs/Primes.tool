@@ -14,15 +14,16 @@ class Computer {
         
         println("Running...");
         
-        n = 10;
+        n = 1000000;
         
         primes = this.findAll(n);
         
         i = 0;
-        while(i < primes.length) {
+        
+        /*while(i < primes.length) {
             println(primes[i]);
             i = i+1;
-        }
+        }*/
         
         return true;
     }
@@ -39,10 +40,11 @@ class Computer {
             primes[0] = 2;
             primes[1] = 3;
             found = 2;
+            test = 5;
             lastTest = 3;
             
             while(found < n) {
-                if(this.isPrime(test, primes)) {
+                if(this.isPrime(test, primes, found)) {
                     primes[found] = test;
                     found = found + 1;
                 }
@@ -58,8 +60,8 @@ class Computer {
         return primes;
     }
     
-    def isPrime(n: Int, found: Int[]): Bool = {
-        /*var i: Int;
+    def isPrime(n: Int, found: Int[], numFound: Int): Bool = {
+        var i: Int;
         var prime: Bool;
         var break: Bool;
         
@@ -68,7 +70,7 @@ class Computer {
         
         break = false;
         
-        while(i<found.length || found[i]*found[i] < n || break) {
+        while(i<numFound && !(n < found[i]*found[i]) && !break) {
             if(this.mod(n, found[i]) == 0) {
                 prime = false;
                 break = true;
@@ -77,8 +79,7 @@ class Computer {
             i = i+1;
         }
         
-        return prime;*/
-        return true;
+        return prime;
     }
     
     def mod(a: Int, b: Int): Int = {
