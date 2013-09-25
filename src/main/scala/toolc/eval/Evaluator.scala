@@ -16,56 +16,91 @@ class Evaluator(ctx: Context, prog: Program) {
   }
 
   def evalStatement(ectx: EvaluationContext, stmt: StatTree): Unit = stmt match {
-    case Block(stats) => stats.foreach(evalStatement(ectx, _))
+
+    case Block(stats) =>
+      stats.foreach(evalStatement(ectx, _))
+
     case If(expr, thn, els) =>
-      if (evalExpr(ectx, expr).asBool)
+      if (evalExpr(ectx, expr).asBool) {
         evalStatement(ectx, thn)
-      else {
+      } else {
         els match {
           case Some(ex) => evalStatement(ectx, ex)
           case None =>
         }
       }
-    case While(expr, stat) => while (evalExpr(ectx, expr).asBool) evalStatement(ectx, stat)
-    case Println(expr) => evalExpr(ectx, expr) match {
-      case StringValue(s) => println(s)
-      case IntValue(v) => println(v)
-      case BoolValue(b) => println(b)
-      case _ => fatal("println() only takes String, Int Values or Bool", stmt)
-    }
-    case Assign(id, expr) => ectx.setVariable(id.value, evalExpr(ectx, expr))
-    case ArrayAssign(id, index, expr) => ectx.getVariable(id.value).asArray.
-    									setIndex(evalExpr(ectx, index).asInt, evalExpr(ectx, expr).asInt)
+
+    case While(expr, stat) =>
+      while (evalExpr(ectx, expr).asBool) evalStatement(ectx, stat)
+
+    case Println(expr) =>
+      evalExpr(ectx, expr) match {
+        case StringValue(s) => println(s)
+        case IntValue(v) => println(v)
+        case BoolValue(b) => println(b)
+        case _ => fatal("println() only takes String, Int Values or Bool")
+      }
+
+    case Assign(id, expr) =>
+      ectx.setVariable(id.value, evalExpr(ectx, expr))
+
+    case ArrayAssign(id, index, expr) =>
+      val indexAsInt = evalExpr(ectx, index).asInt
+      val exprAsInt = evalExpr(ectx, expr).asInt
+      val array = ectx.getVariable(id.value).asArray
+      array.setIndex(indexAsInt, exprAsInt)
+
     case _ =>
       fatal("unnexpected statement", stmt)
   }
+  
 
   def evalExpr(ectx: EvaluationContext, e: ExprTree): Value = e match {
-    case IntLit(value) => IntValue(value)
-    case StringLit(value) => StringValue(value)
-    case True() => BoolValue(true)
-    case False() => BoolValue(false)
-    case And(lhs, rhs) => BoolValue(evalExpr(ectx, lhs).asBool && evalExpr(ectx, rhs).asBool)
-    case Or(lhs, rhs) => BoolValue(evalExpr(ectx, lhs).asBool || evalExpr(ectx, rhs).asBool)
-    case Plus(lhs, rhs) => 
-      
+
+    case IntLit(value) =>
+      IntValue(value)
+
+    case StringLit(value) =>
+      StringValue(value)
+
+    case True() =>
+      BoolValue(true)
+
+    case False() =>
+      BoolValue(false)
+
+    case And(lhs, rhs) =>
+      BoolValue(evalExpr(ectx, lhs).asBool && evalExpr(ectx, rhs).asBool)
+
+    case Or(lhs, rhs) =>
+      BoolValue(evalExpr(ectx, lhs).asBool || evalExpr(ectx, rhs).asBool)
+
+    case Plus(lhs, rhs) =>
       var res: Value = null
-      val pair = (evalExpr(ectx, lhs), evalExpr(ectx, rhs)) match {
-      	case (IntValue(l), IntValue(r)) => res = IntValue(l + r)
-      	case (IntValue(l), StringValue(r)) => res = StringValue(l + r)
-      	case (StringValue(l), IntValue(r)) => res = StringValue(l + r)
-      	case (StringValue(l), StringValue(r)) => res = StringValue(l + r)
-      	case _ => 
-    }
-    	
+      (evalExpr(ectx, lhs), evalExpr(ectx, rhs)) match {
+        case (IntValue(l), IntValue(r)) => res = IntValue(l + r)
+        case (IntValue(l), StringValue(r)) => res = StringValue(l + r)
+        case (StringValue(l), IntValue(r)) => res = StringValue(l + r)
+        case (StringValue(l), StringValue(r)) => res = StringValue(l + r)
+        case _ => fatal("Using operator + with other than String or Int")
+      }
       res
 
-      
-    case Minus(lhs, rhs) => IntValue(evalExpr(ectx, lhs).asInt - evalExpr(ectx, rhs).asInt)
-    case Times(lhs, rhs) => IntValue(evalExpr(ectx, lhs).asInt * evalExpr(ectx, rhs).asInt)
-    case Div(lhs, rhs) => IntValue(evalExpr(ectx, lhs).asInt / evalExpr(ectx, rhs).asInt)
-    case LessThan(lhs, rhs) => BoolValue(evalExpr(ectx, lhs).asInt < evalExpr(ectx, rhs).asInt)
-    case Not(expr) => BoolValue(!evalExpr(ectx, expr).asBool)
+    case Minus(lhs, rhs) =>
+      IntValue(evalExpr(ectx, lhs).asInt - evalExpr(ectx, rhs).asInt)
+
+    case Times(lhs, rhs) =>
+      IntValue(evalExpr(ectx, lhs).asInt * evalExpr(ectx, rhs).asInt)
+
+    case Div(lhs, rhs) =>
+      IntValue(evalExpr(ectx, lhs).asInt / evalExpr(ectx, rhs).asInt)
+
+    case LessThan(lhs, rhs) =>
+      BoolValue(evalExpr(ectx, lhs).asInt < evalExpr(ectx, rhs).asInt)
+
+    case Not(expr) =>
+      BoolValue(!evalExpr(ectx, expr).asBool)
+
     case Equals(lhs, rhs) =>
       val lv = evalExpr(ectx, lhs)
       val rv = evalExpr(ectx, rhs)
@@ -76,31 +111,45 @@ class Evaluator(ctx: Context, prog: Program) {
       }
       BoolValue(res)
 
-    case ArrayRead(arr, index) => IntValue(evalExpr(ectx, arr).asArray.getIndex(evalExpr(ectx, index).asInt))
-    case ArrayLength(arr) => IntValue(evalExpr(ectx, arr).asArray.size)
-    
+    case ArrayRead(arr, index) =>
+      IntValue(evalExpr(ectx, arr).asArray.getIndex(evalExpr(ectx, index).asInt))
+
+    case ArrayLength(arr) =>
+      IntValue(evalExpr(ectx, arr).asArray.size)
+
     case MethodCall(obj, meth, args) =>
       val objValue = evalExpr(ectx, obj).asObject
-      val md = findMethod(objValue.cd, meth.value)
       val mcxt = new MethodContext(objValue)
+      val md = findMethod(objValue.cd, meth.value)
+      // Declare arguments & Initialize them with arguments from call
       md.args.foreach(arg => mcxt.declareVariable(arg.id.value))
       val pairs = md.args.zip(args)
       pairs.foreach(pair => mcxt.setVariable(pair._1.id.value, evalExpr(ectx, pair._2)))
+      // Declare local variables
       md.vars.foreach(v => mcxt.declareVariable(v.id.value))
+      // Evaluate each statement from method context
       md.stats.foreach(evalStatement(mcxt, _))
+      // Compute & return expression
       evalExpr(mcxt, md.retExpr)
-      
-    case Identifier(name) => ectx.getVariable(name)
-    case New(tpe) => // ObjectValue declare/setField
+
+    case Identifier(name) =>
+      ectx.getVariable(name)
+
+    case New(tpe) =>
+      // Create object
       val cd = findClass(tpe.value);
       var obj = new ObjectValue(cd)
+      // Declare object's fields
       fieldsOfClass(cd).foreach(obj.declareField(_))
       obj
-    case This() => ectx match {
-      case mctx: MethodContext => mctx.obj
-      case _ => fatal("You can't use this in main method")
-    }
-    case NewIntArray(size) => 
+
+    case This() =>
+      ectx match {
+        case mctx: MethodContext => mctx.obj
+        case _ => fatal("You can't use this keyword in main method")
+      }
+
+    case NewIntArray(size) =>
       val sizeInt = evalExpr(ectx, size).asInt
       new ArrayValue(new Array[Int](sizeInt), sizeInt)
   }
@@ -151,10 +200,10 @@ class Evaluator(ctx: Context, prog: Program) {
     cd.methods.find(_.id.value == name) match {
       case Some(v) => v
       case None =>
-      	cd.parent match {
-      	  case Some(p) => findMethod(findClass(p.value), name)
-      	  case None => fatal("Unknow method");
-      	}
+        cd.parent match {
+          case Some(p) => findMethod(findClass(p.value), name)
+          case None => fatal("Unknow method");
+        }
     }
   }
 
