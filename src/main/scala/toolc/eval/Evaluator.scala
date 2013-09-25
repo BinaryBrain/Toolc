@@ -30,7 +30,8 @@ class Evaluator(ctx: Context, prog: Program) {
     case Println(expr) => evalExpr(ectx, expr) match {
       case StringValue(s) => println(s)
       case IntValue(v) => println(v)
-      case _ => 
+      case BoolValue(b) => println(b)
+      case _ => fatal("println() only takes String, Int Values or Bool", stmt)
     }
     case Assign(id, expr) => ectx.setVariable(id.value, evalExpr(ectx, expr))
     case ArrayAssign(id, index, expr) => ectx.getVariable(id.value).asArray.
@@ -50,11 +51,11 @@ class Evaluator(ctx: Context, prog: Program) {
       
       var res: Value = null
       val pair = (evalExpr(ectx, lhs), evalExpr(ectx, rhs)) match {
-      case (IntValue(l), IntValue(r)) => res = IntValue(l + r)
-      case (IntValue(l), StringValue(r)) => res = StringValue(l + r)
-      case (StringValue(l), IntValue(r)) => res = StringValue(l + r)
-      case (StringValue(l), StringValue(r)) => res = StringValue(l + r)
-      case _ => 
+      	case (IntValue(l), IntValue(r)) => res = IntValue(l + r)
+      	case (IntValue(l), StringValue(r)) => res = StringValue(l + r)
+      	case (StringValue(l), IntValue(r)) => res = StringValue(l + r)
+      	case (StringValue(l), StringValue(r)) => res = StringValue(l + r)
+      	case _ => 
     }
     	
       res
