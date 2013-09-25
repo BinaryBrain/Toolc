@@ -70,7 +70,7 @@ class Computer {
         
         break = false;
         
-        while(i<numFound && !(n < found[i]*found[i]) && !break) {
+        while(!break && !(n < found[i]*found[i]) && i<numFound) {
             if(this.mod(n, found[i]) == 0) {
                 prime = false;
                 break = true;
