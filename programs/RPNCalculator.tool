@@ -66,7 +66,7 @@ class Calculator {
 		st = st.show();
 		
 		println("Trying to pop an operation to test method inheritance (will output error):");
-		dummy = new Operation().init(st.plusCode()).popYourselfOutOfStack();
+		dummy = new Operation().init(st.plusCode()).popYourselfOutOfStack(st);
 		
 		return true;
 	}
