@@ -22,7 +22,7 @@ class Test {
 		println("m3: " + matrix3.toString());
 		println("m1 + m1 = " + matrix1.plus(matrix1).toString());
 		println("m1 * m2 = " + matrix1.times(matrix2).toString());
-		println("det m3 = " + matrix3.det());
+		println("det m3 = " + matrix3.det() + " (should be 0)");
 		return true;
 	}
 	
