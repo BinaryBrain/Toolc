@@ -65,6 +65,9 @@ class Calculator {
 		st = st.push(new Operation().init(st.minusCode()));
 		st = st.show();
 		
+		println("Trying to pop an operation to test method inheritance (will output error):");
+		dummy = new Operation().init(st.plusCode()).popYourselfOutOfStack();
+		
 		return true;
 	}
 }
@@ -146,7 +149,7 @@ class Stackable {
 	}
 	
 	def popYourselfOutOfStack(st: Stack): Stackable = {
-		println("Generic Stackable must not be used.");
+		println("Generic Stackable must not be used to pop.");
 		return this;
 	}
 	
