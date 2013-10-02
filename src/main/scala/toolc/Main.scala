@@ -24,11 +24,12 @@ object Main {
   def main(args: Array[String]) {
     val ctx = processOptions(args)
 
-    val program = new toolc.reference.Parser().parse(ctx, ctx.file)
+    val pipeline = Lexer
 
-    val evaluator = new Evaluator(ctx, program)
+    val tokens = pipeline.run(ctx)(ctx.file)
 
-    evaluator.eval()
-
+    for (t <- tokens) {
+      print(t+"("+t.line+":"+t.col+") ")
+    }
   }
 }
