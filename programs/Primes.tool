@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 object Primes {
     def main(): Unit = {
         if(new Computer().run()) {
