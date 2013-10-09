@@ -175,8 +175,9 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
             				    if(endOfFile)
             				    	fatal("Unclosed comment block")
             				    cont = false
+            				    nextCh
             				  }
-            				  nextCh
+            				  
             			  }
             			  next }
             			
