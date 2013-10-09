@@ -29,7 +29,7 @@ object Main {
     val tokens = pipeline.run(ctx)(ctx.file)
 
     for (t <- tokens) {
-      print(t+"("+t.line+":"+t.col+") ")
+      println(t)
     }
   }
 }

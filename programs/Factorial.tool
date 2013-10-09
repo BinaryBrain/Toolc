@@ -13,4 +13,4 @@ class Fact {
             num_aux = num * (this.computeFactorial(num - 1));
         return num_aux;
     }
-}/*
+}

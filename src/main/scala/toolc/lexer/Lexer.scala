@@ -16,9 +16,15 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
       var token: Token = null
       var ch = source.next
       var pos = source.pos
+      var endOfFile = false
 
       def nextCh = {
-        ch = source.next
+        if(source.hasNext) {
+        	ch = source.next 
+        } else {
+          endOfFile = true
+          ch = 0
+        }
       }
       
       def hasNext = {
@@ -29,7 +35,7 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
       def next = {
         pos = source.pos
 
-        if (!source.hasNext) {
+        if(endOfFile) {
           token = new Token(EOF)
         }
         
@@ -136,6 +142,9 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
               	nextCh
               	var str = ""
               	while(ch != '"') {
+              	  if(endOfFile) {
+              	    fatal("Non Terminated String")
+              	  }
               	  str = str + ch
               	  nextCh
               	}
@@ -146,8 +155,8 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
             
             			// Single-line comment
             			if(ch == '/') {
-            			  while(ch != '\n' && source.hasNext) nextCh;
-            			  if(source.hasNext) nextCh
+            			  while(ch != '\n' && !endOfFile) nextCh;
+            			  nextCh
             			  next 
             			}
             			
@@ -156,12 +165,18 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
             			  nextCh
             			  var cont = true
             			  while(cont) {
-            				  while(ch != '*' && source.hasNext) nextCh
-            				  if(source.hasNext) nextCh
-            				  if(ch == '/' || !source.hasNext) {
+            				  while(ch != '*') {
+            				    if(endOfFile)
+            				    	fatal("Unclosed comment block")
+            				    nextCh
+            				  }
+            				  nextCh
+            				  if(ch == '/') {
+            				    if(endOfFile)
+            				    	fatal("Unclosed comment block")
             				    cont = false
             				  }
-            				  if(source.hasNext) nextCh
+            				  nextCh
             			  }
             			  next }
             			
