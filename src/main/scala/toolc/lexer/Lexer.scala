@@ -62,13 +62,15 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
             case '-' => nextCh; new Token(MINUS)
             case '*' => nextCh; new Token(TIMES)
             
-            case x if (x.isDigit && x != '0')  => 
+            case x if x.isDigit  =>
               nextCh
               var integer = x.asDigit
               var cont = true
               while(cont) {
                 ch match {
                   case y if y.isDigit =>
+                    	  if(integer == 0)
+                    	    fatal("Integer literal beginning with 0")
                 		  integer = integer * 10 + y.asDigit
                 		  nextCh
                   case _ =>
@@ -77,8 +79,6 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
               }
               
               new INTLIT(integer)
-              
-            case '0' => nextCh; new INTLIT(0)
             
             case '&' => nextCh;
             			if(ch == '&') {
