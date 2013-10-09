@@ -142,7 +142,7 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
               	nextCh
               	var str = ""
               	while(ch != '"') {
-              	  if(endOfFile) {
+              	  if(ch == '\n' || endOfFile) {
               	    fatal("Non Terminated String")
               	  }
               	  str = str + ch
