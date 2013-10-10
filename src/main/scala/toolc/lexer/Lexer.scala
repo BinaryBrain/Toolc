@@ -143,7 +143,7 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
               	var str = ""
               	while(ch != '"') {
               	  if(ch == '\n' || endOfFile) {
-              	    fatal("Non Terminated String")
+              	    //fatal("Non Terminated String")
               	  }
               	  str = str + ch
               	  nextCh
@@ -167,13 +167,13 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
             			  while(cont) {
             				  while(ch != '*') {
             				    if(endOfFile)
-            				    	fatal("Unclosed comment block")
+            				    	//fatal("Unclosed comment block")
             				    nextCh
             				  }
             				  nextCh
             				  if(ch == '/') {
             				    if(endOfFile)
-            				    	fatal("Unclosed comment block")
+            				    	//fatal("Unclosed comment block")
             				    cont = false
             				    nextCh
             				  }
