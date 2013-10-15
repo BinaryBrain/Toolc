@@ -13,11 +13,17 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
     import ctx.reporter._
     
     new Iterator[Token] {
-      var token: Token = null
+      // Current character
       var ch = source.next
+      // Current Token
+      var token: Token = null
+      // Position of current token
       var pos = source.pos
+      // Are we at end of file ?
       var endOfFile = false
 
+      // Set ch to the next character in source file
+      // Set ch to byte 0 if endOfFile
       def nextCh = {
         if(source.hasNext) {
         	ch = source.next 
@@ -33,6 +39,8 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
       }
 
       def next = {
+        
+        // Set start postition of the current token
         pos = source.pos
 
         if(endOfFile) {
@@ -43,6 +51,7 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
           
           token = ch match {
             
+            // Skip current character if it's a space, tab, etc...
             case c if c.toString.matches("\\s")  => nextCh; next
             
             
