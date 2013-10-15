@@ -40,7 +40,7 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
 
       def next = {
         
-        // Set start postition of the current token
+        // Set start position of the current token
         pos = source.pos
 
         if(endOfFile) {
@@ -71,6 +71,7 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
             case '-' => nextCh; new Token(MINUS)
             case '*' => nextCh; new Token(TIMES)
             
+            // INTLIT Token (not beginning with 0)
             case x if (x.isDigit && x != '0')  =>
               nextCh
               var integer = x.asDigit
@@ -112,7 +113,8 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
             			} else {
             			  new Token(EQSIGN)
             			}
-            			
+            
+            // ID Token
             case c if c.isLetter => 
               var id = c.toString
               nextCh
@@ -120,7 +122,8 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
                 id = id + ch
                 nextCh
               }
-              
+            
+            // look up if id is one of the keywords
             id match {
               case "object" => new Token(OBJECT)
               case "class" => new Token(CLASS)
@@ -146,14 +149,16 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
               case _ => new ID(id)
             }
               
-            			
+            
+            // STRLIT Token
             case '"' =>
               	nextCh
               	var str = ""
               	var cont = true
+              	// Wait for second "
               	while(ch != '"' && cont) {
               	  if(ch == '\n' || endOfFile) {
-              	    //fatal("Non Terminated String")
+              	    fatal("Non Terminated String")
               	    cont = false
               	    nextCh
               	  } else {
@@ -179,14 +184,14 @@ object Lexer extends Pipeline[File, Iterator[Token]] {
             			  var cont = true
             			  while(cont) {
             				  while(ch != '*') {
-            				    //if(endOfFile)
-            				    	//fatal("Unclosed comment block")
+            				    if(endOfFile)
+            				    	fatal("Unclosed comment block")
             				    nextCh
             				  }
             				  nextCh
             				  if(ch == '/') {
-            				    //if(endOfFile)
-            				    	//fatal("Unclosed comment block")
+            				    if(endOfFile)
+            				    	fatal("Unclosed comment block")
             				    cont = false
             				    nextCh
             				  }
