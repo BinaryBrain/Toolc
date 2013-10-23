@@ -270,8 +270,10 @@ object Parser extends Pipeline[Iterator[Token], Program] {
           new IntType
         }
       } else if(currentToken.kind == BOOLEAN) {
+        eat(BOOLEAN)
         new BooleanType
       } else if(currentToken.kind == STRING) {
+        eat(STRING)
         new StringType
       } else {
     	parseIdentifier
@@ -279,36 +281,7 @@ object Parser extends Pipeline[Iterator[Token], Program] {
     }
     
     def parseExpr: ExprTree = {
-      val e = parseOrExpr
-      if(currentToken.kind == LBRACKET) {
-        eat(LBRACKET)
-        val indexExpr = parseExpr
-        eat(RBRACKET)
-        new ArrayRead(e, indexExpr)
-      } 
-      
-      else if(currentToken.kind == DOT) {
-        eat(DOT)
-        
-        if(currentToken.kind == LENGTH) {
-          eat(LENGTH)
-          new ArrayLength(e)
-        }
-        
-        else {
-          val id = parseIdentifier
-          eat(LPAREN)
-          var exprs: List[ExprTree] = List()
-          while(isFirstOfExpr) {
-        	  exprs = exprs ::: List(parseExpr)
-          }
-          eat(RPAREN)
-          
-          new MethodCall(e, id, exprs)
-        }
-      } else {
-        e
-      }
+      parseOrExpr
     }
     
     def parseOrExpr: ExprTree = {
@@ -372,7 +345,7 @@ object Parser extends Pipeline[Iterator[Token], Program] {
     }
     
     def parseFinalExpr: ExprTree = {
-      if(currentToken.kind == TRUE) {
+      var e = if(currentToken.kind == TRUE) {
         eat(TRUE)
         new True
       }
@@ -429,6 +402,43 @@ object Parser extends Pipeline[Iterator[Token], Program] {
         val expr = parseExpr
         eat(RPAREN)
         expr
+      }
+      
+      if(currentToken.kind == LBRACKET) {
+        eat(LBRACKET)
+        val indexExpr = parseExpr
+        eat(RBRACKET)
+        new ArrayRead(e, indexExpr)
+      } 
+      
+      else if(currentToken.kind == DOT) {
+        eat(DOT)
+        
+        if(currentToken.kind == LENGTH) {
+          eat(LENGTH)
+          new ArrayLength(e)
+        }
+        
+        else {
+          val id = parseIdentifier
+          eat(LPAREN)
+          var exprs: List[ExprTree] = List()
+          
+          if(isFirstOfExpr) {
+        	  	exprs = exprs ::: List(parseExpr)
+          }
+      
+          while(currentToken.kind == COMMA) {
+        	  eat(COMMA)
+        	  exprs = exprs ::: List(parseExpr)
+          }
+          
+          eat(RPAREN)
+          
+          new MethodCall(e, id, exprs)
+        }
+      } else {
+        e
       }
     }
 
