@@ -24,12 +24,18 @@ object Main {
   def main(args: Array[String]) {
     val ctx = processOptions(args)
 
-    val pipeline = Lexer
+    val pipeline = Lexer andThen
+                   Parser
 
-    val tokens = pipeline.run(ctx)(ctx.file)
-
-    for (t <- tokens) {
+    val program = pipeline.run(ctx)(ctx.file)
+    
+    /* Lexer lab
+     * for (t <- tokens) {
       println(t)
-    }
+    }*/
+    
+    // Parser Lab
+    println(Printer(program))
+    
   }
 }
