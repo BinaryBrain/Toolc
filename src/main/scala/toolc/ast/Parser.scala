@@ -87,6 +87,7 @@ object Parser extends Pipeline[Iterator[Token], Program] {
       
       var parent: Option[Identifier] = None
       if(currentToken.kind == EXTENDS) {
+        eat(EXTENDS)
         parent = Some(parseIdentifier)
       }
       
