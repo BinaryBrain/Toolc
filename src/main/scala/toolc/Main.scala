@@ -35,7 +35,12 @@ object Main {
     }*/
     
     // Parser Lab
-    println(Printer(program))
+    val programPrettyPrint = Printer(program)
+    println(programPrettyPrint)
+    
+    
+    
+    println("Print check is: ")
     
   }
 }

@@ -81,8 +81,67 @@ object Printer {
         i = i-1
         s
         
+        
+      case And(lhs: ExprTree, rhs: ExprTree) =>
+        apply(lhs) + " && " + apply(rhs)
+        
+      case Or(lhs: ExprTree, rhs: ExprTree) =>
+        apply(lhs) + " || " + apply(rhs)
+        
+      case Plus(lhs: ExprTree, rhs: ExprTree) =>
+        apply(lhs) + " + " + apply(rhs)
+        
+      case Minus(lhs: ExprTree, rhs: ExprTree) =>
+        apply(lhs) + " - " + apply(rhs)
+        
+      case Times(lhs: ExprTree, rhs: ExprTree) =>
+        apply(lhs) + " * " + apply(rhs)
+        
+      case Div(lhs: ExprTree, rhs: ExprTree) =>
+        apply(lhs) + " / " + apply(rhs)
+        
+      case LessThan(lhs: ExprTree, rhs: ExprTree) =>
+        apply(lhs) + " < " + apply(rhs)
+        
+      case Equals(lhs: ExprTree, rhs: ExprTree) =>
+        apply(lhs) + " == " + apply(rhs)
+        
+      case ArrayRead(arr: ExprTree, index: ExprTree) =>
+        apply(arr) + "[" + apply(index) + "]"
+        
+      case ArrayLength(arr: ExprTree) =>
+        apply(arr) + ".length"
+        
+      case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) =>
+        apply(obj) + "." + apply(meth) + "(" + args.map(apply(_)).mkString(",") +
+        ")"
+        
+      case IntLit(value: Int) =>
+        value.toString
+        
+      case StringLit(value: String) =>
+        "\"" + value + "\""
+        
+      case True() =>
+        "true"
+        
+      case False() =>
+        "false"
+        
       case Identifier(value: String) =>
        value
+       
+      case This() =>
+        "this"
+        
+      case NewIntArray(size: ExprTree) =>
+        "new Int[" + apply(size) + "]"
+        
+      case New(tpe: Identifier) =>
+        "new " + apply(tpe) + "()"
+        
+      case Not(expr: ExprTree) =>
+        "!" + apply(expr)
       	
       case _ => ""
       
