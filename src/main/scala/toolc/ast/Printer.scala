@@ -12,7 +12,12 @@ object Printer {
       	apply(main) + classes.map(apply(_)).mkString
       	
       case MainObject(id: Identifier, stats: List[StatTree]) =>
-        "object " + apply(id) + " {\n" + stats.map(apply(_)).mkString + "}\n\n"
+        i = i + 1
+        val s = "object " + apply(id) + " {\n" + 
+        indent(i) + "def main() : Unit = {\n" +  
+        stats.map(apply(_)).mkString + indent(i) + "}\n}\n\n"
+        i = i -1
+        s
         
       case ClassDecl(id: Identifier, parent: Option[Identifier], vars: List[VarDecl], methods: List[MethodDecl]) =>
         "class " + apply(id) + (parent match { case Some(id) => " extends " + apply(id) case None => ""}) +

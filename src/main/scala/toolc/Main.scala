@@ -38,9 +38,5 @@ object Main {
     val programPrettyPrint = Printer(program)
     println(programPrettyPrint)
     
-    
-    
-    println("Print check is: ")
-    
   }
 }
