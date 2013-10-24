@@ -33,7 +33,7 @@ object Printer {
       case MethodDecl(retType: TypeTree, id: Identifier, args: List[Formal],
           vars: List[VarDecl], stats: List[StatTree], retExpr: ExprTree) =>
         i = i+1
-        val s = "\n" + indent(i)+"def "+apply(id)+"("+args.map(apply(_)).mkString(", ")+") : "+apply(retType)+" {\n"+
+        val s = "\n" + indent(i)+"def "+apply(id)+"("+args.map(apply(_)).mkString(", ")+") : "+apply(retType)+" = {\n"+
           vars.map(apply(_)).mkString + "\n" + stats.map(apply(_)).mkString + indent(i+1) + "return "+apply(retExpr)+";\n"+
         indent(i)+"}\n"
         i = i-1

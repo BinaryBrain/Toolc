@@ -41,7 +41,7 @@ object Parser extends Pipeline[Iterator[Token], Program] {
     
     def isFirstOfClassDecl = currentToken.kind == CLASS
     def isFirstOfStatement = List(LBRACE, IF, WHILE, PRINTLN, IDKIND).exists(_ == currentToken.kind) 
-    def isFirstOfExpr = List(LPAREN, BANG, NEW, IDKIND, FALSE, TRUE, STRLITKIND, INTLITKIND).exists(_ == currentToken.kind)
+    def isFirstOfExpr = List(LPAREN, BANG, NEW, IDKIND, FALSE, THIS, TRUE, STRLITKIND, INTLITKIND).exists(_ == currentToken.kind)
     def isFirstOfChainExpr = List(LBRACKET, DOT).exists(_ == currentToken.kind)
     
 
