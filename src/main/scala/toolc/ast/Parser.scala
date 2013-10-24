@@ -41,7 +41,8 @@ object Parser extends Pipeline[Iterator[Token], Program] {
     
     def isFirstOfClassDecl = currentToken.kind == CLASS
     def isFirstOfStatement = List(LBRACE, IF, WHILE, PRINTLN, IDKIND).exists(_ == currentToken.kind) 
-    def isFirstOfExpr = List(LPAREN, BANG, NEW, IDKIND, FALSE, TRUE, STRLITKIND, INTLITKIND).exists(_ == currentToken.kind) 
+    def isFirstOfExpr = List(LPAREN, BANG, NEW, IDKIND, FALSE, TRUE, STRLITKIND, INTLITKIND).exists(_ == currentToken.kind)
+    def isFirstOfChainExpr = List(LBRACKET, DOT).exists(_ == currentToken.kind)
     
 
     
@@ -404,11 +405,13 @@ object Parser extends Pipeline[Iterator[Token], Program] {
         expr
       }
       
+      while(isFirstOfChainExpr) {
+      
       if(currentToken.kind == LBRACKET) {
         eat(LBRACKET)
         val indexExpr = parseExpr
         eat(RBRACKET)
-        new ArrayRead(e, indexExpr)
+        e = new ArrayRead(e, indexExpr)
       } 
       
       else if(currentToken.kind == DOT) {
@@ -416,7 +419,7 @@ object Parser extends Pipeline[Iterator[Token], Program] {
         
         if(currentToken.kind == LENGTH) {
           eat(LENGTH)
-          new ArrayLength(e)
+          e = new ArrayLength(e)
         }
         
         else {
@@ -435,11 +438,12 @@ object Parser extends Pipeline[Iterator[Token], Program] {
           
           eat(RPAREN)
           
-          new MethodCall(e, id, exprs)
+          e = new MethodCall(e, id, exprs)
         }
-      } else {
-        e
       }
+      }
+      
+      e
     }
 
     readToken
