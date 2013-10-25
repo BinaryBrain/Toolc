@@ -88,28 +88,28 @@ object Printer {
         
         
       case And(lhs: ExprTree, rhs: ExprTree) =>
-        apply(lhs) + " && " + apply(rhs)
+        "(" + apply(lhs) + " && " + apply(rhs) + ")"
         
       case Or(lhs: ExprTree, rhs: ExprTree) =>
-        apply(lhs) + " || " + apply(rhs)
+        "(" + apply(lhs) + " || " + apply(rhs) + ")"
         
       case Plus(lhs: ExprTree, rhs: ExprTree) =>
-        apply(lhs) + " + " + apply(rhs)
+        "(" + apply(lhs) + " + " + apply(rhs) + ")"
         
       case Minus(lhs: ExprTree, rhs: ExprTree) =>
-        apply(lhs) + " - " + apply(rhs)
+        "(" + apply(lhs) + " - " + apply(rhs) + ")"
         
       case Times(lhs: ExprTree, rhs: ExprTree) =>
-        apply(lhs) + " * " + apply(rhs)
+        "(" + apply(lhs) + " * " + apply(rhs) + ")"
         
       case Div(lhs: ExprTree, rhs: ExprTree) =>
-        apply(lhs) + " / " + apply(rhs)
+        "(" + apply(lhs) + " / " + apply(rhs) + ")"
         
       case LessThan(lhs: ExprTree, rhs: ExprTree) =>
-        apply(lhs) + " < " + apply(rhs)
+        "(" + apply(lhs) + " < " + apply(rhs) + ")"
         
       case Equals(lhs: ExprTree, rhs: ExprTree) =>
-        apply(lhs) + " == " + apply(rhs)
+        "(" + apply(lhs) + " == " + apply(rhs) + ")"
         
       case ArrayRead(arr: ExprTree, index: ExprTree) =>
         apply(arr) + "[" + apply(index) + "]"
@@ -146,7 +146,7 @@ object Printer {
         "new " + apply(tpe) + "()"
         
       case Not(expr: ExprTree) =>
-        "!" + apply(expr)
+        "!" + "(" + apply(expr) + ")"
       	
       case _ => ""
       

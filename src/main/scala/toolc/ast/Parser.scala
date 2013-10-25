@@ -6,6 +6,9 @@ import Trees._
 import lexer._
 import lexer.Tokens._
 
+// TODO Two invalid programs
+// TODO SetPos of each Tree returned
+
 object Parser extends Pipeline[Iterator[Token], Program] {
   def run(ctx: Context)(tokens: Iterator[Token]): Program = {
     import ctx.reporter._
