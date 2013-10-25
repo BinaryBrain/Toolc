@@ -228,7 +228,7 @@ object Parser extends Pipeline[Iterator[Token], Program] {
         first = false
       }
       
-      while(!false && currentToken.kind == COMMA) {
+      while(!first && currentToken.kind == COMMA) {
     	eat(COMMA)
         args = args ::: List(parseArg)
       }
