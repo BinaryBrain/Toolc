@@ -221,11 +221,14 @@ object Parser extends Pipeline[Iterator[Token], Program] {
       eat(LPAREN)
       var args: List[Formal] = List() 
       
+      
+      var first = true
       if(currentToken.kind == IDKIND) {
         args = args ::: List(parseArg)
+        first = false
       }
       
-      while(currentToken.kind == COMMA) {
+      while(!false && currentToken.kind == COMMA) {
     	eat(COMMA)
         args = args ::: List(parseArg)
       }
@@ -430,12 +433,15 @@ object Parser extends Pipeline[Iterator[Token], Program] {
           val id = parseIdentifier
           eat(LPAREN)
           var exprs: List[ExprTree] = List()
+          var first = true
+          
           
           if(isFirstOfExpr) {
         	  	exprs = exprs ::: List(parseExpr)
+        	  	first = false
           }
       
-          while(currentToken.kind == COMMA) {
+          while(!first && currentToken.kind == COMMA) {
         	  eat(COMMA)
         	  exprs = exprs ::: List(parseExpr)
           }
