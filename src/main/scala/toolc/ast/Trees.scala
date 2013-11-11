@@ -61,7 +61,7 @@ object Trees {
     override def setType(tpe: Type) = this
   }
 
-  case class This() extends ExprTree
+  case class This() extends ExprTree with Symbolic[ClassSymbol]
   case class NewIntArray(size: ExprTree) extends ExprTree
   case class New(tpe: Identifier) extends ExprTree
   case class Not(expr: ExprTree) extends ExprTree
