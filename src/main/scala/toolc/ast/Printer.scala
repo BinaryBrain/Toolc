@@ -11,36 +11,35 @@ object Printer {
       case Program(main: MainObject, classes: List[ClassDecl]) => 
       	apply(main) + classes.map(apply(_)).mkString
       	
-      case MainObject(id: Identifier, stats: List[StatTree]) =>
+      case main: MainObject =>
         i = i + 1
-        val s = "object " + apply(id) + " {\n" + 
+        val s = "object " + apply(main.id) + " {\n" + 
         indent(i) + "def main() : Unit = {\n" +  
-        stats.map(apply(_)).mkString + indent(i) + "}\n}\n\n"
+        main.stats.map(apply(_)).mkString + indent(i) + "}\n}\n\n"
         i = i -1
         s
         
-      case ClassDecl(id: Identifier, parent: Option[Identifier], vars: List[VarDecl], methods: List[MethodDecl]) =>
-        "class " + apply(id) + (parent match { case Some(id) => " extends " + apply(id) case None => ""}) +
-        " {\n" + vars.map(apply(_)).mkString + "\n" + methods.map(apply(_)).mkString + "}\n\n"
+      case c: ClassDecl =>
+        "class " + apply(c.id) + (c.parent match { case Some(id) => " extends " + apply(id) case None => ""}) +
+        " {\n" + c.vars.map(apply(_)).mkString + "\n" + c.methods.map(apply(_)).mkString + "}\n\n"
 
         
-      case VarDecl(tpe: TypeTree, id: Identifier) =>
+      case v: VarDecl =>
         i = i+1;
-        val s = indent(i)+"var "+apply(id)+": "+apply(tpe)+";\n"
+        val s = indent(i) + "var " + apply(v.id) + ": "+apply(v.tpe)+";\n"
         i = i-1
         s
         
-      case MethodDecl(retType: TypeTree, id: Identifier, args: List[Formal],
-          vars: List[VarDecl], stats: List[StatTree], retExpr: ExprTree) =>
+      case m: MethodDecl =>
         i = i+1
-        val s = "\n" + indent(i)+"def "+apply(id)+"("+args.map(apply(_)).mkString(", ")+") : "+apply(retType)+" = {\n"+
-          vars.map(apply(_)).mkString + "\n" + stats.map(apply(_)).mkString + indent(i+1) + "return "+apply(retExpr)+";\n"+
+        val s = "\n" + indent(i) + "def " + apply(m.id) + "("+m.args.map(apply(_)).mkString(", ")+") : "+apply(m.retType)+" = {\n"+
+          m.vars.map(apply(_)).mkString + "\n" + m.stats.map(apply(_)).mkString + indent(i+1) + "return "+apply(m.retExpr)+";\n"+
         indent(i)+"}\n"
         i = i-1
         s
         
-      case Formal(tpe: TypeTree, id: Identifier) =>
-        apply(id)+": "+apply(tpe)
+      case f: Formal =>
+        apply(f.id) + ": "+apply(f.tpe)
         
       case IntArrayType() => "Int[]"
       case IntType() => "Int"
@@ -76,13 +75,13 @@ object Printer {
         
       case Assign(id: Identifier, expr: ExprTree) =>
         i = i+1
-        val s = indent(i) + apply(id) + " = " + apply(expr)+";\n"
+        val s = indent(i) + apply(id) +  " = " + apply(expr)+";\n"
         i = i-1
         s
         
       case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) =>
         i = i+1
-        val s = indent(i) + apply(id) + "[" + apply(index) + "] = " + apply(expr)+";\n"
+        val s = indent(i) + id.value + "#" + id.getSymbol.id + "[" + apply(index) + "] = " + apply(expr)+";\n"
         i = i-1
         s
         
@@ -118,7 +117,7 @@ object Printer {
         apply(arr) + ".length"
         
       case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) =>
-        apply(obj) + "." + apply(meth) + "(" + args.map(apply(_)).mkString(",") +
+        apply(obj) + "." + meth.value + "#??" + "(" + args.map(apply(_)).mkString(",") +
         ")"
         
       case IntLit(value: Int) =>
@@ -133,11 +132,11 @@ object Printer {
       case False() =>
         "false"
         
-      case Identifier(value: String) =>
-       value
+      case id: Identifier =>
+        id.value + "#" + id.getSymbol.id
        
-      case This() =>
-        "this"
+      case thiz: This =>
+        "this" + "#" + thiz.getSymbol.id
         
       case NewIntArray(size: ExprTree) =>
         "new Int[" + apply(size) + "]"
