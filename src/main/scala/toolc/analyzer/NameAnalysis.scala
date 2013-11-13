@@ -21,28 +21,49 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
     prog.classes.foreach { c: ClassDecl =>
       val cs: ClassSymbol = new ClassSymbol(c.id.value)
-      
+
       c.setSymbol(cs)
       c.id.setSymbol(cs)
-      gs.classes = gs.classes + ((c.id.value, cs)) // TODO Check if the key is correct
+      
+      gs.lookupClass(c.id.value) match {
+        case None => gs.classes = gs.classes + ((c.id.value, cs)) // TODO Check if the key is correct
+        case _ => fatal("illegal attempt to override class '" + c.id.value + "' at " + c.id.position)
+      }
 
       c.vars.foreach { v: VarDecl =>
         val vs: VariableSymbol = new VariableSymbol(v.id.value)
         v.setSymbol(vs)
         v.id.setSymbol(vs)
-        cs.members = cs.members + ((v.id.value, vs))
+
+        cs.lookupVar(v.id.value) match {
+          case None => cs.members = cs.members + ((v.id.value, vs))
+          case _ => fatal("illegal attempt to override field '" + v.id.value + "' at " + v.id.position)
+        }
       }
 
       c.methods.foreach { m: MethodDecl =>
         val ms: MethodSymbol = new MethodSymbol(m.id.value, cs)
         m.setSymbol(ms)
         m.id.setSymbol(ms)
-        cs.methods = cs.methods + ((m.id.value, ms))
+        
+        cs.lookupMethod(m.id.value) match {
+          case None => cs.methods = cs.methods + ((m.id.value, ms))
+          case _ => fatal("illegal attempt to override method '" + m.id.value + "' at " + m.id.position)
+        }
 
         m.args.foreach { a: Formal =>
           val as: VariableSymbol = new VariableSymbol(a.id.value)
           a.setSymbol(as)
           a.id.setSymbol(as)
+          
+          ms.lookupVar(a.id.value) match {
+            case None =>
+            case _ => ms.classSymbol.lookupVar(a.id.value) match {
+              case None => fatal("illegal attempt to override argument '" + a.id.value + "' at " + a.id.position)
+              case _ =>
+            }
+          }
+
           ms.argList = ms.argList ::: List(as)
           ms.params = ms.params + ((a.id.value, as))
         }
@@ -51,32 +72,50 @@ object NameAnalysis extends Pipeline[Program, Program] {
           val vs: VariableSymbol = new VariableSymbol(v.id.value)
           v.setSymbol(vs)
           v.id.setSymbol(vs)
+
+          ms.lookupVar(v.id.value) match {
+            case None =>
+            case _ => ms.params.get(v.id.value) match {
+              case None =>
+              case _ => fatal("illegal attempt to override argument '" + v.id.value + "' at " + v.id.position)
+            }
+          }
+          
           ms.members = ms.members + ((v.id.value, vs))
         }
-
-        //TODO champ overridden in ms
       }
     }
 
     prog.main.stats.foreach { s: StatTree =>
       nameBinding(s, prog.main.getSymbol)
     }
-    
+
     prog.classes.foreach { c: ClassDecl =>
       val cs: ClassSymbol = c.getSymbol
-      
+
       cs.parent = c.parent match {
         case None => None
         case Some(id) => gs.lookupClass(id.value)
       }
     }
     
+    prog.classes.foreach { c: ClassDecl =>
+      var accu = List(c.getSymbol)
+      while(accu.head.parent.isDefined) {
+        if(accu.contains(accu.head.parent.get)) fatal("cycle in inheritance hierarchy of class '" + c.id.value + "' at " + c.id.position)
+        accu = accu.head.parent.get :: accu
+      }
+    }
 
     prog.classes.foreach { c: ClassDecl =>
       val cs: ClassSymbol = c.getSymbol
-      
+
       c.parent match {
-        case Some(p) => p.setSymbol(gs.lookupClass(p.value).get)
+        case Some(id) => gs.lookupClass(id.value) match {
+              case None => fatal("undefined class '"+id.value+"' at "+id.position)
+              case _ => id.setSymbol(gs.lookupClass(id.value).get)
+            }
+
         case _ =>
       }
 
@@ -96,13 +135,19 @@ object NameAnalysis extends Pipeline[Program, Program] {
         }
         m.vars.foreach { v: VarDecl =>
           v.tpe match {
-            case id: Identifier => id.setSymbol(gs.lookupClass(id.value).get)
+            case id: Identifier => gs.lookupClass(id.value) match {
+              case None => fatal("undefined class '"+id.value+"' at "+id.position)
+              case _ => id.setSymbol(gs.lookupClass(id.value).get)
+            }
             case _ =>
           }
         }
 
         m.retType match {
-          case id: Identifier => id.setSymbol(gs.lookupClass(id.value).get)
+          case id: Identifier => gs.lookupClass(id.value) match {
+              case None => fatal("undefined class '"+id.value+"' at "+id.position)
+              case _ => id.setSymbol(gs.lookupClass(id.value).get)
+            }
           case _ =>
         }
         m.stats.foreach(nameBinding(_, ms))
@@ -155,7 +200,10 @@ object NameAnalysis extends Pipeline[Program, Program] {
         nameBindingExpr(size, s)
       case Not(expr: ExprTree) =>
         nameBindingExpr(expr, s)
-      case New(tpe: Identifier) => tpe.setSymbol(gs.lookupClass(tpe.value).get) // TODO Error
+      case New(tpe: Identifier) => gs.lookupClass(tpe.value) match {
+        case None => fatal("undefined class '"+tpe.value+"' at "+tpe.position)
+        case _ => tpe.setSymbol(gs.lookupClass(tpe.value).get)
+      }
       case thiz: This => lookUpThis(thiz, s)
       case id: Identifier => lookUpId(id, s)
       case _ =>
@@ -172,14 +220,16 @@ object NameAnalysis extends Pipeline[Program, Program] {
         case Some(_) => id.setSymbol(lookUpVar(id, s).get)
         case None => s match {
           case ms: MethodSymbol => ms.classSymbol.parent match {
-            case None => fatal("undefined var " + id.value + " at " + id.position)
+            case None => fatal("undefined var '" + id.value + "' at " + id.position)
             case Some(ps) => lookUpId(id, ps)
           }
-          case cs: ClassSymbol => { cs.parent match {
-            case None => fatal("undefined var " + id.value + " at " + id.position)
-            case Some(ps) => lookUpId(id, ps)
-          }}
-          case _ => fatal("undefined var " + id.value + " at " + id.position)
+          case cs: ClassSymbol => {
+            cs.parent match {
+              case None => fatal("undefined var '" + id.value + "' at " + id.position)
+              case Some(ps) => lookUpId(id, ps)
+            }
+          }
+          case _ => fatal("undefined var '" + id.value + "' at " + id.position)
         }
       }
     }
