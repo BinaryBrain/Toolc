@@ -21,6 +21,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
     prog.classes.foreach { c: ClassDecl =>
       val cs: ClassSymbol = new ClassSymbol(c.id.value)
+      
       c.setSymbol(cs)
       c.id.setSymbol(cs)
       gs.classes = gs.classes + ((c.id.value, cs)) // TODO Check if the key is correct
@@ -60,15 +61,25 @@ object NameAnalysis extends Pipeline[Program, Program] {
     prog.main.stats.foreach { s: StatTree =>
       nameBinding(s, prog.main.getSymbol)
     }
+    
+    prog.classes.foreach { c: ClassDecl =>
+      val cs: ClassSymbol = c.getSymbol
+      
+      cs.parent = c.parent match {
+        case None => None
+        case Some(id) => gs.lookupClass(id.value)
+      }
+    }
+    
 
     prog.classes.foreach { c: ClassDecl =>
       val cs: ClassSymbol = c.getSymbol
       
-      c.parent match{
+      c.parent match {
         case Some(p) => p.setSymbol(gs.lookupClass(p.value).get)
         case _ =>
-      } 
-      
+      }
+
       c.vars.foreach { v: VarDecl =>
         v.tpe match {
           case id: Identifier => id.setSymbol(gs.lookupClass(id.value).get)
@@ -159,7 +170,17 @@ object NameAnalysis extends Pipeline[Program, Program] {
     def lookUpId(id: Identifier, s: Symbol): Unit = {
       lookUpVar(id, s) match {
         case Some(_) => id.setSymbol(lookUpVar(id, s).get)
-        case None => fatal("undefined var " + id.value + " at " + id.position)
+        case None => s match {
+          case ms: MethodSymbol => ms.classSymbol.parent match {
+            case None => fatal("undefined var " + id.value + " at " + id.position)
+            case Some(ps) => lookUpId(id, ps)
+          }
+          case cs: ClassSymbol => { cs.parent match {
+            case None => fatal("undefined var " + id.value + " at " + id.position)
+            case Some(ps) => lookUpId(id, ps)
+          }}
+          case _ => fatal("undefined var " + id.value + " at " + id.position)
+        }
       }
     }
 
