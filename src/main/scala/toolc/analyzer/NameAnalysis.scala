@@ -13,8 +13,6 @@ object NameAnalysis extends Pipeline[Program, Program] {
     // Step 2: Attach symbols to identifiers (except method calls) in method bodies
     // (Step 3:) Print tree with symbol ids for debugging
     // Make sure you check for all constraints
-    
-    fatal("Piccard")
 
     val gs: GlobalScope = new GlobalScope()
     prog.main.setSymbol(new ClassSymbol(prog.main.id.value))
@@ -106,6 +104,14 @@ object NameAnalysis extends Pipeline[Program, Program] {
       }
     }
     
+    prog.classes.foreach { c: ClassDecl =>
+      var accu = List(c.getSymbol)
+      while(accu.head.parent.isDefined) {
+        if(accu.contains(accu.head.parent.get)) fatal("cycle in inheritance hierarchy of class '" + c.id.value + "' at " + c.id.position)
+        accu = accu.head.parent.get :: accu
+      }
+    }
+    
     for((_, cs) <- gs.classes) {
       for((_, vs) <- cs.members) {
         var parentClass = cs.parent
@@ -129,14 +135,6 @@ object NameAnalysis extends Pipeline[Program, Program] {
         	}
         	parentClass = parentClass.get.parent
         }
-      }
-    }
-    
-    prog.classes.foreach { c: ClassDecl =>
-      var accu = List(c.getSymbol)
-      while(accu.head.parent.isDefined) {
-        if(accu.contains(accu.head.parent.get)) fatal("cycle in inheritance hierarchy of class '" + c.id.value + "' at " + c.id.position)
-        accu = accu.head.parent.get :: accu
       }
     }
 
