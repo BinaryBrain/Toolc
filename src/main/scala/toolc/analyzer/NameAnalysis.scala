@@ -23,6 +23,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
       val cs: ClassSymbol = new ClassSymbol(c.id.value)
 
       c.setSymbol(cs)
+      cs.setPos(c)
       c.id.setSymbol(cs)
       
       gs.lookupClass(c.id.value) match {
@@ -33,6 +34,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
       c.vars.foreach { v: VarDecl =>
         val vs: VariableSymbol = new VariableSymbol(v.id.value)
         v.setSymbol(vs)
+        vs.setPos(v)
         v.id.setSymbol(vs)
 
         cs.lookupVar(v.id.value) match {
@@ -44,6 +46,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
       c.methods.foreach { m: MethodDecl =>
         val ms: MethodSymbol = new MethodSymbol(m.id.value, cs)
         m.setSymbol(ms)
+        ms.setPos(m)
         m.id.setSymbol(ms)
         
         cs.lookupMethod(m.id.value) match {
@@ -54,6 +57,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
         m.args.foreach { a: Formal =>
           val as: VariableSymbol = new VariableSymbol(a.id.value)
           a.setSymbol(as)
+          as.setPos(a)
           a.id.setSymbol(as)
           
           ms.lookupVar(a.id.value) match {
@@ -71,6 +75,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
         m.vars.foreach { v: VarDecl =>
           val vs: VariableSymbol = new VariableSymbol(v.id.value)
           v.setSymbol(vs)
+          vs.setPos(v)
           v.id.setSymbol(vs)
 
           ms.lookupVar(v.id.value) match {
@@ -96,6 +101,20 @@ object NameAnalysis extends Pipeline[Program, Program] {
       cs.parent = c.parent match {
         case None => None
         case Some(id) => gs.lookupClass(id.value)
+      }
+    }
+    
+    for((_, cs) <- gs.classes) {
+      for((_, ms) <- cs.methods) {
+        var parentClass = cs.parent
+        while(parentClass.isDefined) {
+        	if(parentClass.get.lookupMethod(ms.name).isDefined) {
+        	  if(parentClass.get.lookupMethod(ms.name).get.argList.size != ms.argList.size) {
+        	    fatal("illegal attempt to overload method "+ms.name+" at "+ms.position)
+        	  }
+        	}
+        	parentClass = parentClass.get.parent
+        }
       }
     }
     
