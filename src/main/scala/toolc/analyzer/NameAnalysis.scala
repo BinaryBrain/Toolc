@@ -13,6 +13,8 @@ object NameAnalysis extends Pipeline[Program, Program] {
     // Step 2: Attach symbols to identifiers (except method calls) in method bodies
     // (Step 3:) Print tree with symbol ids for debugging
     // Make sure you check for all constraints
+    
+    fatal("Piccard")
 
     val gs: GlobalScope = new GlobalScope()
     prog.main.setSymbol(new ClassSymbol(prog.main.id.value))
@@ -105,11 +107,23 @@ object NameAnalysis extends Pipeline[Program, Program] {
     }
     
     for((_, cs) <- gs.classes) {
+      for((_, vs) <- cs.members) {
+        var parentClass = cs.parent
+        while(parentClass.isDefined) {
+          var vaar = parentClass.get.lookupVar(vs.name)
+          if(vaar.isDefined) {
+            fatal("illegal attempt to override field "+vs.name+" at "+vs.position)
+          }
+          parentClass = parentClass.get.parent
+        }
+      }
+      
       for((_, ms) <- cs.methods) {
         var parentClass = cs.parent
         while(parentClass.isDefined) {
-        	if(parentClass.get.lookupMethod(ms.name).isDefined) {
-        	  if(parentClass.get.lookupMethod(ms.name).get.argList.size != ms.argList.size) {
+        	var meth = parentClass.get.lookupMethod(ms.name)
+        	if(meth.isDefined) {
+        	  if(meth.get.argList.size != ms.argList.size) {
         	    fatal("illegal attempt to overload method "+ms.name+" at "+ms.position)
         	  }
         	}
