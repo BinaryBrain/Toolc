@@ -4,6 +4,7 @@ package analyzer
 import utils._
 import ast.Trees._
 import Symbols._
+import scala.collection.mutable.LinkedList
 
 object NameAnalysis extends Pipeline[Program, Program] {
 
@@ -14,21 +15,27 @@ object NameAnalysis extends Pipeline[Program, Program] {
     // (Step 3:) Print tree with symbol ids for debugging
     // Make sure you check for all constraints
 
+    var errors: List[String] = List()
+
     val gs: GlobalScope = new GlobalScope()
+
+    //Collect main class
     prog.main.setSymbol(new ClassSymbol(prog.main.id.value))
     prog.main.id.setSymbol(prog.main.getSymbol)
     gs.mainClass = prog.main.getSymbol
 
+    // For each class
     prog.classes.foreach { c: ClassDecl =>
-      val cs: ClassSymbol = new ClassSymbol(c.id.value)
 
+      // Collect the class
+      val cs: ClassSymbol = new ClassSymbol(c.id.value)
       c.setSymbol(cs)
       cs.setPos(c)
       c.id.setSymbol(cs)
-      
+
       gs.lookupClass(c.id.value) match {
         case None => gs.classes = gs.classes + ((c.id.value, cs)) // TODO Check if the key is correct
-        case _ => fatal("illegal attempt to override class '" + c.id.value + "' at " + c.id.position)
+        case _ => errorFound("illegal attempt to override class '" + c.id.value + "' at " + c.id.position)
       }
 
       c.vars.foreach { v: VarDecl =>
@@ -39,7 +46,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
         cs.lookupVar(v.id.value) match {
           case None => cs.members = cs.members + ((v.id.value, vs))
-          case _ => fatal("illegal attempt to override field '" + v.id.value + "' at " + v.id.position)
+          case _ => errorFound("illegal attempt to override field '" + v.id.value + "' at " + v.id.position)
         }
       }
 
@@ -48,10 +55,10 @@ object NameAnalysis extends Pipeline[Program, Program] {
         m.setSymbol(ms)
         ms.setPos(m)
         m.id.setSymbol(ms)
-        
+
         cs.lookupMethod(m.id.value) match {
           case None => cs.methods = cs.methods + ((m.id.value, ms))
-          case _ => fatal("illegal attempt to override method '" + m.id.value + "' at " + m.id.position)
+          case _ => errorFound("illegal attempt to override method '" + m.id.value + "' at " + m.id.position)
         }
 
         m.args.foreach { a: Formal =>
@@ -59,11 +66,11 @@ object NameAnalysis extends Pipeline[Program, Program] {
           a.setSymbol(as)
           as.setPos(a)
           a.id.setSymbol(as)
-          
+
           ms.lookupVar(a.id.value) match {
             case None =>
             case _ => ms.classSymbol.lookupVar(a.id.value) match {
-              case None => fatal("illegal attempt to override argument '" + a.id.value + "' at " + a.id.position)
+              case None => errorFound("illegal attempt to override argument '" + a.id.value + "' at " + a.id.position)
               case _ =>
             }
           }
@@ -82,10 +89,10 @@ object NameAnalysis extends Pipeline[Program, Program] {
             case None =>
             case _ => ms.params.get(v.id.value) match {
               case None =>
-              case _ => fatal("illegal attempt to override argument '" + v.id.value + "' at " + v.id.position)
+              case _ => errorFound("illegal attempt to override argument '" + v.id.value + "' at " + v.id.position)
             }
           }
-          
+
           ms.members = ms.members + ((v.id.value, vs))
         }
       }
@@ -103,37 +110,47 @@ object NameAnalysis extends Pipeline[Program, Program] {
         case Some(id) => gs.lookupClass(id.value)
       }
     }
-    
+
     prog.classes.foreach { c: ClassDecl =>
       var accu = List(c.getSymbol)
-      while(accu.head.parent.isDefined) {
-        if(accu.contains(accu.head.parent.get)) fatal("cycle in inheritance hierarchy of class '" + c.id.value + "' at " + c.id.position)
+      var continue = true
+      while (accu.head.parent.isDefined && continue) {
+        if (accu.contains(accu.head.parent.get)) {
+        	errorFound("cycle in inheritance hierarchy of class '" + c.id.value + "' at " + c.id.position)
+        	continue = false
+        }
         accu = accu.head.parent.get :: accu
       }
     }
     
-    for((_, cs) <- gs.classes) {
-      for((_, vs) <- cs.members) {
+    // There was some errors
+    if (!errors.isEmpty) {
+      errors.foreach(error(_))
+      fatal("Errors in name analysis phase after collecting definitions")
+    }
+
+    for ((_, cs) <- gs.classes) {
+      for ((_, vs) <- cs.members) {
         var parentClass = cs.parent
-        while(parentClass.isDefined) {
+        while (parentClass.isDefined) {
           var vaar = parentClass.get.lookupVar(vs.name)
-          if(vaar.isDefined) {
-            fatal("illegal attempt to override field "+vs.name+" at "+vs.position)
+          if (vaar.isDefined) {
+            errorFound("illegal attempt to override field " + vs.name + " at " + vs.position)
           }
           parentClass = parentClass.get.parent
         }
       }
-      
-      for((_, ms) <- cs.methods) {
+
+      for ((_, ms) <- cs.methods) {
         var parentClass = cs.parent
-        while(parentClass.isDefined) {
-        	var meth = parentClass.get.lookupMethod(ms.name)
-        	if(meth.isDefined) {
-        	  if(meth.get.argList.size != ms.argList.size) {
-        	    fatal("illegal attempt to overload method "+ms.name+" at "+ms.position)
-        	  }
-        	}
-        	parentClass = parentClass.get.parent
+        while (parentClass.isDefined) {
+          var meth = parentClass.get.lookupMethod(ms.name)
+          if (meth.isDefined) {
+            if (meth.get.argList.size != ms.argList.size) {
+              errorFound("illegal attempt to overload method " + ms.name + " at " + ms.position)
+            }
+          }
+          parentClass = parentClass.get.parent
         }
       }
     }
@@ -143,9 +160,9 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
       c.parent match {
         case Some(id) => gs.lookupClass(id.value) match {
-              case None => fatal("undefined class '"+id.value+"' at "+id.position)
-              case _ => id.setSymbol(gs.lookupClass(id.value).get)
-            }
+          case None => errorFound("undefined class '" + id.value + "' at " + id.position)
+          case _ => id.setSymbol(gs.lookupClass(id.value).get)
+        }
 
         case _ =>
       }
@@ -167,7 +184,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
         m.vars.foreach { v: VarDecl =>
           v.tpe match {
             case id: Identifier => gs.lookupClass(id.value) match {
-              case None => fatal("undefined class '"+id.value+"' at "+id.position)
+              case None => errorFound("undefined class '" + id.value + "' at " + id.position)
               case _ => id.setSymbol(gs.lookupClass(id.value).get)
             }
             case _ =>
@@ -176,9 +193,9 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
         m.retType match {
           case id: Identifier => gs.lookupClass(id.value) match {
-              case None => fatal("undefined class '"+id.value+"' at "+id.position)
-              case _ => id.setSymbol(gs.lookupClass(id.value).get)
-            }
+            case None => errorFound("undefined class '" + id.value + "' at " + id.position)
+            case _ => id.setSymbol(gs.lookupClass(id.value).get)
+          }
           case _ =>
         }
         m.stats.foreach(nameBinding(_, ms))
@@ -232,7 +249,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
       case Not(expr: ExprTree) =>
         nameBindingExpr(expr, s)
       case New(tpe: Identifier) => gs.lookupClass(tpe.value) match {
-        case None => fatal("undefined class '"+tpe.value+"' at "+tpe.position)
+        case None => errorFound("undefined class '" + tpe.value + "' at " + tpe.position)
         case _ => tpe.setSymbol(gs.lookupClass(tpe.value).get)
       }
       case thiz: This => lookUpThis(thiz, s)
@@ -251,16 +268,16 @@ object NameAnalysis extends Pipeline[Program, Program] {
         case Some(_) => id.setSymbol(lookUpVar(id, s).get)
         case None => s match {
           case ms: MethodSymbol => ms.classSymbol.parent match {
-            case None => fatal("undefined var '" + id.value + "' at " + id.position)
+            case None => errorFound("undefined var '" + id.value + "' at " + id.position)
             case Some(ps) => lookUpId(id, ps)
           }
           case cs: ClassSymbol => {
             cs.parent match {
-              case None => fatal("undefined var '" + id.value + "' at " + id.position)
+              case None => errorFound("undefined var '" + id.value + "' at " + id.position)
               case Some(ps) => lookUpId(id, ps)
             }
           }
-          case _ => fatal("undefined var '" + id.value + "' at " + id.position)
+          case _ => errorFound("undefined var '" + id.value + "' at " + id.position)
         }
       }
     }
@@ -269,6 +286,16 @@ object NameAnalysis extends Pipeline[Program, Program] {
       case m: MethodSymbol => thiz.setSymbol(m.classSymbol)
       case c: ClassSymbol => thiz.setSymbol(c)
       case _ =>
+    }
+
+    def errorFound(errMsg: String): Unit = {
+      errors = errors ::: List(errMsg)
+    }
+
+    // There was some errors
+    if (!errors.isEmpty) {
+      errors.foreach(error(_))
+      fatal("Errors in name analysis phase after checking uses")
     }
 
     prog
