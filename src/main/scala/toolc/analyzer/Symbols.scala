@@ -64,5 +64,7 @@ object Symbols {
       else classSymbol.lookupVar(n)
   }
 
-  class VariableSymbol(val name: String) extends Symbol
+  class VariableSymbol(val name: String) extends Symbol {
+    var used: Boolean = false
+  }
 }

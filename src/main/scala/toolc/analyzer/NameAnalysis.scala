@@ -190,10 +190,6 @@ object NameAnalysis extends Pipeline[Program, Program] {
         }
       }
     }
-    
-    //========================================================
-    // CHECK USES
-    //========================================================
 
     prog.classes.foreach { c: ClassDecl =>
       val cs: ClassSymbol = c.getSymbol
@@ -297,7 +293,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
       case _ =>
     }
 
-    def lookUpVar(id: Identifier, s: Symbol): Option[Symbol] = s match {
+    def lookUpVar(id: Identifier, s: Symbol): Option[VariableSymbol] = s match {
       case m: MethodSymbol => m.lookupVar(id.value)
       case c: ClassSymbol => c.lookupVar(id.value)
       case _ => sys.error("Look up Var in bad scope"); None
@@ -305,7 +301,10 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
     def lookUpId(id: Identifier, s: Symbol): Unit = {
       lookUpVar(id, s) match {
-        case Some(_) => id.setSymbol(lookUpVar(id, s).get)
+        case Some(_) => 
+          id.setSymbol(lookUpVar(id, s).get)
+          lookUpVar(id, s).get.used = true
+        
         case None => s match {
           case ms: MethodSymbol => ms.classSymbol.parent match {
             case None => errorFound("undefined var '" + id.value + "' at " + id.position)
@@ -330,6 +329,33 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
     def errorFound(errMsg: String): Unit = {
       errors = errors ::: List(errMsg)
+    }
+    
+    // Output warnings about unused variable/field
+    prog.classes.foreach { c: ClassDecl =>
+      val cs: ClassSymbol = c.getSymbol
+      
+      for((name, vs) <- cs.members) {
+        if(!vs.used) {
+          warning("Unused field " + name + " in class " + cs.name, vs)
+        }
+      }
+      
+      for((methodName, ms) <- cs.methods) {
+        
+        for((argName, vs) <- ms.params) {
+          if(!vs.used) {
+            warning("Unused argument " + argName + " in method " + ms.name + " in class " + cs.name, vs)
+          }
+        }
+        
+        for((varName, vs) <- ms.members) {
+          if(!vs.used) {
+            warning("Unused local variable " + varName + " in method " + ms.name + " in class " + cs.name, vs)
+          }
+        }
+        
+      }
     }
 
     // There was some errors
