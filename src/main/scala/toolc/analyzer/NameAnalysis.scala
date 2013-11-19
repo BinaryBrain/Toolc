@@ -19,6 +19,10 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
     val gs: GlobalScope = new GlobalScope()
 
+    //========================================================
+    // COLLECT DEFINITIONS
+    //========================================================
+    
     //Collect main class
     prog.main.setSymbol(new ClassSymbol(prog.main.id.value))
     prog.main.id.setSymbol(prog.main.getSymbol)
@@ -27,46 +31,53 @@ object NameAnalysis extends Pipeline[Program, Program] {
     // For each class
     prog.classes.foreach { c: ClassDecl =>
 
-      // Collect the class
+      // Collect the class definition
       val cs: ClassSymbol = new ClassSymbol(c.id.value)
       c.setSymbol(cs)
       cs.setPos(c)
       c.id.setSymbol(cs)
 
+      // Check if class already exist
       gs.lookupClass(c.id.value) match {
         case None => gs.classes = gs.classes + ((c.id.value, cs)) // TODO Check if the key is correct
         case _ => errorFound("illegal attempt to override class '" + c.id.value + "' at " + c.id.position)
       }
 
+      // Collect fields
       c.vars.foreach { v: VarDecl =>
         val vs: VariableSymbol = new VariableSymbol(v.id.value)
         v.setSymbol(vs)
         vs.setPos(v)
         v.id.setSymbol(vs)
 
+        // Check if field already exist
         cs.lookupVar(v.id.value) match {
           case None => cs.members = cs.members + ((v.id.value, vs))
           case _ => errorFound("illegal attempt to override field '" + v.id.value + "' at " + v.id.position)
         }
       }
 
+      // Collect methods
       c.methods.foreach { m: MethodDecl =>
         val ms: MethodSymbol = new MethodSymbol(m.id.value, cs)
         m.setSymbol(ms)
         ms.setPos(m)
         m.id.setSymbol(ms)
 
+        // Check if method already exist
         cs.lookupMethod(m.id.value) match {
           case None => cs.methods = cs.methods + ((m.id.value, ms))
           case _ => errorFound("illegal attempt to override method '" + m.id.value + "' at " + m.id.position)
         }
 
+        // Collect method args
         m.args.foreach { a: Formal =>
           val as: VariableSymbol = new VariableSymbol(a.id.value)
           a.setSymbol(as)
           as.setPos(a)
           a.id.setSymbol(as)
 
+          // Check if args already exist
           ms.lookupVar(a.id.value) match {
             case None =>
             case _ => ms.classSymbol.lookupVar(a.id.value) match {
@@ -79,16 +90,21 @@ object NameAnalysis extends Pipeline[Program, Program] {
           ms.params = ms.params + ((a.id.value, as))
         }
 
+        // Collect local variable
         m.vars.foreach { v: VarDecl =>
           val vs: VariableSymbol = new VariableSymbol(v.id.value)
           v.setSymbol(vs)
           vs.setPos(v)
           v.id.setSymbol(vs)
 
+          // Check if variable already exist
           ms.lookupVar(v.id.value) match {
             case None =>
             case _ => ms.params.get(v.id.value) match {
-              case None =>
+              case None => ms.members.get(v.id.value) match {
+                case None =>
+                case _ => errorFound("illegal attempt to override local variable '" + v.id.value + "' at " + v.id.position)
+              }
               case _ => errorFound("illegal attempt to override argument '" + v.id.value + "' at " + v.id.position)
             }
           }
@@ -97,10 +113,18 @@ object NameAnalysis extends Pipeline[Program, Program] {
         }
       }
     }
+    
+    //========================================================
+    // NAME BINDING
+    //========================================================
 
     prog.main.stats.foreach { s: StatTree =>
       nameBinding(s, prog.main.getSymbol)
     }
+    
+    //========================================================
+    // SET PARENT
+    //========================================================
 
     prog.classes.foreach { c: ClassDecl =>
       val cs: ClassSymbol = c.getSymbol
@@ -110,6 +134,10 @@ object NameAnalysis extends Pipeline[Program, Program] {
         case Some(id) => gs.lookupClass(id.value)
       }
     }
+    
+    //========================================================
+    // CHECK INHERITANCE CYCLE
+    //========================================================
 
     prog.classes.foreach { c: ClassDecl =>
       var accu = List(c.getSymbol)
@@ -123,11 +151,19 @@ object NameAnalysis extends Pipeline[Program, Program] {
       }
     }
     
+    //========================================================
+    // FIRST GUARD
+    //========================================================
+    
     // There was some errors
     if (!errors.isEmpty) {
       errors.foreach(error(_))
       fatal("Errors in name analysis phase after collecting definitions")
     }
+    
+    //========================================================
+    // CHECK OVERLOADING/OVERRIDING
+    //========================================================
 
     for ((_, cs) <- gs.classes) {
       for ((_, vs) <- cs.members) {
@@ -154,6 +190,10 @@ object NameAnalysis extends Pipeline[Program, Program] {
         }
       }
     }
+    
+    //========================================================
+    // CHECK USES
+    //========================================================
 
     prog.classes.foreach { c: ClassDecl =>
       val cs: ClassSymbol = c.getSymbol
