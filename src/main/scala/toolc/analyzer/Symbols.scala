@@ -3,6 +3,7 @@ package analyzer
 
 import utils._
 import Types._
+import toolc.ast.Trees
 
 object Symbols {
   trait Symbolic[S <: Symbol] {
@@ -64,7 +65,8 @@ object Symbols {
       else classSymbol.lookupVar(n)
   }
 
-  class VariableSymbol(val name: String) extends Symbol {
+  class VariableSymbol(val name: String, val tpe: Trees.TypeTree) extends Symbol {
     var used: Boolean = false
+    // tpe is for recording type of VariableSymbol
   }
 }

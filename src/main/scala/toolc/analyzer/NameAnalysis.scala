@@ -5,6 +5,7 @@ import utils._
 import ast.Trees._
 import Symbols._
 import scala.collection.mutable.LinkedList
+import toolc.ast.Trees
 
 object NameAnalysis extends Pipeline[Program, Program] {
 
@@ -45,7 +46,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
       // Collect fields
       c.vars.foreach { v: VarDecl =>
-        val vs: VariableSymbol = new VariableSymbol(v.id.value)
+        val vs: VariableSymbol = new VariableSymbol(v.id.value, v.tpe)
         v.setSymbol(vs)
         vs.setPos(v)
         v.id.setSymbol(vs)
@@ -72,7 +73,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
         // Collect method args
         m.args.foreach { a: Formal =>
-          val as: VariableSymbol = new VariableSymbol(a.id.value)
+          val as: VariableSymbol = new VariableSymbol(a.id.value, a.tpe)
           a.setSymbol(as)
           as.setPos(a)
           a.id.setSymbol(as)
@@ -92,7 +93,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
         // Collect local variable
         m.vars.foreach { v: VarDecl =>
-          val vs: VariableSymbol = new VariableSymbol(v.id.value)
+          val vs: VariableSymbol = new VariableSymbol(v.id.value, v.tpe)
           v.setSymbol(vs)
           vs.setPos(v)
           v.id.setSymbol(vs)
@@ -159,6 +160,47 @@ object NameAnalysis extends Pipeline[Program, Program] {
     if (!errors.isEmpty) {
       errors.foreach(error(_))
       fatal("Errors in name analysis phase after collecting definitions")
+    }
+    
+    //========================================================
+    // SETTING TYPES
+    //========================================================
+    
+    // Set types of classSymbols
+    gs.mainClass.setType(new Types.TObject(gs.mainClass))
+    gs.classes.foreach{ case (_, cs) =>
+    	cs.setType(new Types.TObject(cs))
+    }
+    
+    gs.classes.foreach{ case (_, cs) => 
+    	
+      // Set types of fields
+      cs.members.foreach{ case (_, vs) =>
+      	setTypeOfVariableSymbol(vs)
+      }
+      
+      cs.methods.foreach{ case (_, ms) =>
+        
+        // Set types of arguments
+      	ms.params.foreach{ case (_, vs) =>
+      	  setTypeOfVariableSymbol(vs)
+      	}
+      	
+      	// Set types of local variables
+      	ms.members.foreach{ case (_, vs) =>
+      		setTypeOfVariableSymbol(vs)
+      	}
+      }
+    }
+    
+    def setTypeOfVariableSymbol(vs: VariableSymbol): Unit = {
+      vs.tpe match {
+        case Trees.IntType() => vs.setType(Types.TInt)
+        case Trees.IntArrayType() => vs.setType(Types.TIntArray)
+        case Trees.BooleanType() => vs.setType(Types.TBool)
+        case Trees.StringType() => vs.setType(Types.TString)
+        case id: Trees.Identifier =>  vs.setType(id.getType)
+      }
     }
     
     //========================================================
