@@ -60,7 +60,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
       // Collect methods
       c.methods.foreach { m: MethodDecl =>
-        val ms: MethodSymbol = new MethodSymbol(m.id.value, cs)
+        val ms: MethodSymbol = new MethodSymbol(m.id.value, cs, m.retType)
         m.setSymbol(ms)
         ms.setPos(m)
         m.id.setSymbol(ms)
@@ -163,47 +163,6 @@ object NameAnalysis extends Pipeline[Program, Program] {
     }
     
     //========================================================
-    // SETTING TYPES
-    //========================================================
-    
-    // Set types of classSymbols
-    gs.mainClass.setType(new Types.TObject(gs.mainClass))
-    gs.classes.foreach{ case (_, cs) =>
-    	cs.setType(new Types.TObject(cs))
-    }
-    
-    gs.classes.foreach{ case (_, cs) => 
-    	
-      // Set types of fields
-      cs.members.foreach{ case (_, vs) =>
-      	setTypeOfVariableSymbol(vs)
-      }
-      
-      cs.methods.foreach{ case (_, ms) =>
-        
-        // Set types of arguments
-      	ms.params.foreach{ case (_, vs) =>
-      	  setTypeOfVariableSymbol(vs)
-      	}
-      	
-      	// Set types of local variables
-      	ms.members.foreach{ case (_, vs) =>
-      		setTypeOfVariableSymbol(vs)
-      	}
-      }
-    }
-    
-    def setTypeOfVariableSymbol(vs: VariableSymbol): Unit = {
-      vs.tpe match {
-        case Trees.IntType() => vs.setType(Types.TInt)
-        case Trees.IntArrayType() => vs.setType(Types.TIntArray)
-        case Trees.BooleanType() => vs.setType(Types.TBool)
-        case Trees.StringType() => vs.setType(Types.TString)
-        case id: Trees.Identifier =>  vs.setType(id.getType)
-      }
-    }
-    
-    //========================================================
     // CHECK OVERLOADING/OVERRIDING
     //========================================================
 
@@ -224,9 +183,25 @@ object NameAnalysis extends Pipeline[Program, Program] {
         while (parentClass.isDefined) {
           var meth = parentClass.get.lookupMethod(ms.name)
           if (meth.isDefined) {
+            
+            // Check same number of arguments
             if (meth.get.argList.size != ms.argList.size) {
-              errorFound("illegal attempt to overload method " + ms.name + " at " + ms.position)
+              errorFound("illegal attempt to overload method (number of arguments do not match) " + ms.name + " at " + ms.position)
             }
+            
+            // Check exact same argument's types
+            val argListZip = ms.argList.zip(meth.get.argList)
+            argListZip.foreach{ case (arg, argOverriden) =>
+              if(arg.getType != argOverriden.getType) {
+                errorFound("illegal attempt to overload method (Wrong argument type) " + ms.name + " at " + arg.position)
+              }
+            }
+            
+            // Check exact same return type
+            if(ms.returnType.getType != meth.get.returnType.getType) {
+              errorFound("illegal attempt to overload method (Wrong return type) " + ms.name + " at " + ms.position)
+            }
+            
           }
           parentClass = parentClass.get.parent
         }
@@ -278,6 +253,47 @@ object NameAnalysis extends Pipeline[Program, Program] {
         }
         m.stats.foreach(nameBinding(_, ms))
         nameBindingExpr(m.retExpr, ms)
+      }
+    }
+    
+    //========================================================
+    // SETTING TYPES
+    //========================================================
+    
+    // Set types of classSymbols
+    gs.mainClass.setType(new Types.TObject(gs.mainClass))
+    gs.classes.foreach{ case (_, cs) =>
+    	cs.setType(new Types.TObject(cs))
+    }
+    
+    gs.classes.foreach{ case (_, cs) => 
+    	
+      // Set types of fields
+      cs.members.foreach{ case (_, vs) =>
+      	setTypeOfVariableSymbol(vs)
+      }
+      
+      cs.methods.foreach{ case (_, ms) =>
+        
+        // Set types of arguments
+      	ms.params.foreach{ case (_, vs) =>
+      	  setTypeOfVariableSymbol(vs)
+      	}
+      	
+      	// Set types of local variables
+      	ms.members.foreach{ case (_, vs) =>
+      		setTypeOfVariableSymbol(vs)
+      	}
+      }
+    }
+    
+    def setTypeOfVariableSymbol(vs: VariableSymbol): Unit = {
+      vs.tpe match {
+        case Trees.IntType() => vs.setType(Types.TInt)
+        case Trees.IntArrayType() => vs.setType(Types.TIntArray)
+        case Trees.BooleanType() => vs.setType(Types.TBool)
+        case Trees.StringType() => vs.setType(Types.TString)
+        case id: Trees.Identifier =>  vs.setType(id.getType)
       }
     }
 

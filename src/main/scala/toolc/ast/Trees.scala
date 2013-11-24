@@ -16,10 +16,18 @@ object Trees {
   sealed case class Formal(tpe: TypeTree, id: Identifier) extends Tree with Symbolic[VariableSymbol]
 
   sealed trait TypeTree extends Tree with Typed
-  case class IntArrayType() extends TypeTree
-  case class IntType() extends TypeTree
-  case class BooleanType() extends TypeTree
-  case class StringType() extends TypeTree
+  case class IntArrayType() extends TypeTree {
+    override def getType: Type = TIntArray
+  }
+  case class IntType() extends TypeTree {
+    override def getType: Type = TInt
+  }
+  case class BooleanType() extends TypeTree {
+    override def getType: Type = TBool
+  }
+  case class StringType() extends TypeTree {
+    override def getType: Type = TString
+  }
 
   sealed trait StatTree extends Tree
   case class Block(stats: List[StatTree]) extends StatTree
@@ -50,7 +58,7 @@ object Trees {
     // The type of the identifier depends on the type of the symbol
     override def getType: Type = getSymbol match {
       case cs: ClassSymbol =>
-        TObject(cs)
+        cs.getType
 
       case ms: MethodSymbol =>
         sys.error("Requesting type of a method identifier.")

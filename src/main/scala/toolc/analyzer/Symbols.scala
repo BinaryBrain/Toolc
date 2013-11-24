@@ -53,11 +53,11 @@ object Symbols {
     def lookupVar(n: String): Option[VariableSymbol] = members.get(n)
   }
 
-  class MethodSymbol(val name: String, val classSymbol: ClassSymbol) extends Symbol {
+  class MethodSymbol(val name: String, val classSymbol: ClassSymbol, val returnType : Trees.TypeTree) extends Symbol {
     var params = Map[String,VariableSymbol]()
     var members = Map[String,VariableSymbol]()
     var argList: List[VariableSymbol] = Nil
-    var overridden : Option[MethodSymbol] = None
+    var overridden : Option[MethodSymbol] = None //TODO Use this field
 
     def lookupVar(n: String): Option[VariableSymbol] = 
       if(!params.get(n).isEmpty) params.get(n)
