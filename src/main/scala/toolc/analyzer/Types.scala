@@ -27,25 +27,25 @@ object Types {
     override def toString = "[untyped]"
   }
 
-  case object TInt extends Type {
+  case object Tint extends Type {
     override def isSubTypeOf(tpe: Type): Boolean = tpe match {
-      case TInt => true
+      case Tint => true
       case _ => false
     }
     override def toString = "Int"
   }
   
-  case object TIntArray extends Type {
+  case object TintArray extends Type {
     override def isSubTypeOf(tpe: Type): Boolean = tpe match {
-      case TIntArray => true
+      case TintArray => true
       case _ => false
     }
     override def toString = "Int[]"
   }
   
-  case object TBool extends Type {
+  case object TBoolean extends Type {
     override def isSubTypeOf(tpe: Type): Boolean = tpe match {
-      case TBool => true
+      case TBoolean => true
       case _ => false
     }
     override def toString = "Bool"

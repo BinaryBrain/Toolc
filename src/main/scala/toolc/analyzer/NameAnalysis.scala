@@ -290,9 +290,9 @@ object NameAnalysis extends Pipeline[Program, Program] {
     
     def setTypeOfVariableSymbol(v: VarDecl): Unit = {
       v.tpe match {
-        case Trees.IntType() => v.getSymbol.setType(Types.TInt)
-        case Trees.IntArrayType() => v.getSymbol.setType(Types.TIntArray)
-        case Trees.BooleanType() => v.getSymbol.setType(Types.TBool)
+        case Trees.IntType() => v.getSymbol.setType(Types.Tint)
+        case Trees.IntArrayType() => v.getSymbol.setType(Types.TintArray)
+        case Trees.BooleanType() => v.getSymbol.setType(Types.TBoolean)
         case Trees.StringType() => v.getSymbol.setType(Types.TString)
         case id: Trees.Identifier =>  v.getSymbol.setType(id.getType)
       }
@@ -300,9 +300,9 @@ object NameAnalysis extends Pipeline[Program, Program] {
     
     def setTypeOfFormal(f: Formal): Unit = {
       f.tpe match {
-        case Trees.IntType() => f.getSymbol.setType(Types.TInt)
-        case Trees.IntArrayType() => f.getSymbol.setType(Types.TIntArray)
-        case Trees.BooleanType() => f.getSymbol.setType(Types.TBool)
+        case Trees.IntType() => f.getSymbol.setType(Types.Tint)
+        case Trees.IntArrayType() => f.getSymbol.setType(Types.TintArray)
+        case Trees.BooleanType() => f.getSymbol.setType(Types.TBoolean)
         case Trees.StringType() => f.getSymbol.setType(Types.TString)
         case id: Trees.Identifier =>  f.getSymbol.setType(id.getType)
       }

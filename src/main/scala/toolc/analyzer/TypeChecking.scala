@@ -18,61 +18,61 @@ object TypeChecking extends Pipeline[Program, Program] {
     def tcExpr(expr: ExprTree, expected: Type*): Type = {
       val tpe: Type = expr match {
         case And(lhs: ExprTree, rhs: ExprTree) =>
-          tcExpr(lhs, TBool)
-          tcExpr(rhs, TBool)
-          TBool
+          tcExpr(lhs, TBoolean)
+          tcExpr(rhs, TBoolean)
+          TBoolean
         case Or(lhs: ExprTree, rhs: ExprTree) =>
-          tcExpr(lhs, TBool)
-          tcExpr(rhs, TBool)
-          TBool
+          tcExpr(lhs, TBoolean)
+          tcExpr(rhs, TBoolean)
+          TBoolean
         case Plus(lhs: ExprTree, rhs: ExprTree) =>
-          val tpe1 = tcExpr(lhs, TInt, TString)
-          val tpe2 = tcExpr(rhs, TInt, TString)
-          if (tpe1 == TString || tpe2 == TString) TString else TInt
+          val tpe1 = tcExpr(lhs, Tint, TString)
+          val tpe2 = tcExpr(rhs, Tint, TString)
+          if (tpe1 == TString || tpe2 == TString) TString else Tint
         case Minus(lhs: ExprTree, rhs: ExprTree) =>
-          tcExpr(lhs, TInt)
-          tcExpr(rhs, TInt)
-          TInt
+          tcExpr(lhs, Tint)
+          tcExpr(rhs, Tint)
+          Tint
         case Times(lhs: ExprTree, rhs: ExprTree) =>
-          tcExpr(lhs, TInt)
-          tcExpr(rhs, TInt)
-          TInt
+          tcExpr(lhs, Tint)
+          tcExpr(rhs, Tint)
+          Tint
         case Div(lhs: ExprTree, rhs: ExprTree) =>
-          tcExpr(lhs, TInt)
-          tcExpr(rhs, TInt)
-          TInt
+          tcExpr(lhs, Tint)
+          tcExpr(rhs, Tint)
+          Tint
         case LessThan(lhs: ExprTree, rhs: ExprTree) =>
-          tcExpr(lhs, TInt)
-          tcExpr(rhs, TInt)
-          TBool
+          tcExpr(lhs, Tint)
+          tcExpr(rhs, Tint)
+          TBoolean
         case Equals(lhs: ExprTree, rhs: ExprTree) =>
-          val tpe1 = tcExpr(lhs, TInt, TIntArray, TBool, TString, Types.anyObject)
-          val tpe2 = tcExpr(lhs, TInt, TIntArray, TBool, TString, Types.anyObject)
+          val tpe1 = tcExpr(lhs, Tint, TintArray, TBoolean, TString, Types.anyObject)
+          val tpe2 = tcExpr(lhs, Tint, TintArray, TBoolean, TString, Types.anyObject)
           if (tpe1 == tpe2 || (tpe1.isSubTypeOf(Types.anyObject) && tpe2.isSubTypeOf(Types.anyObject)))
-            TBool
+            TBoolean
           else
             TError // TODO Check Equals
         case ArrayRead(arr: ExprTree, index: ExprTree) =>
-          tcExpr(arr, TIntArray)
-          tcExpr(index, TInt)
-          TInt
+          tcExpr(arr, TintArray)
+          tcExpr(index, Tint)
+          Tint
         case ArrayLength(arr: ExprTree) =>
-          tcExpr(arr, TIntArray)
-          TInt
+          tcExpr(arr, TintArray)
+          Tint
         case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) =>
           // tcExpr(obj, classe dans laquelle meth est dŽfinie)
           // tcExpr pour chaque argument doit tre de bon type (ou sous-type)
           // Retourner type de retour de meth
-          TBool
+          TBoolean
         case IntLit(value: Int) =>
-          TInt
+          Tint
         case StringLit(value: String) =>
           TString
 
         case True() =>
-          TBool
+          TBoolean
         case False() =>
-          TBool
+          TBoolean
         case id: Identifier =>
           id.getType
 
@@ -80,13 +80,13 @@ object TypeChecking extends Pipeline[Program, Program] {
           thiz.getSymbol.getType
 
         case NewIntArray(size: ExprTree) =>
-          tcExpr(size, TInt)
-          TIntArray
+          tcExpr(size, Tint)
+          TintArray
         case New(tpe: Identifier) =>
           tpe.getType
         case Not(expr: ExprTree) =>
-          tcExpr(expr, TBool)
-          TBool
+          tcExpr(expr, TBoolean)
+          TBoolean
       }
 
       expr.setType(tpe)
@@ -109,20 +109,20 @@ object TypeChecking extends Pipeline[Program, Program] {
         case Block(stats: List[StatTree]) =>
           stats.foreach(tcStat(_))
         case If(expr: ExprTree, thn: StatTree, els: Option[StatTree]) =>
-          tcExpr(expr, TBool)
+          tcExpr(expr, TBoolean)
           tcStat(thn)
           if(els.isDefined) tcStat(els.get)
         case While(expr: ExprTree, stat: StatTree) =>
-          tcExpr(expr, TBool)
+          tcExpr(expr, TBoolean)
           tcStat(stat)
         case Println(expr: ExprTree) =>
-          tcExpr(expr, TInt, TString, TBool)
+          tcExpr(expr, Tint, TString, TBoolean)
         case Assign(id: Identifier, expr: ExprTree) =>
           tcExpr(expr, id.getType)
         case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) =>
-          tcExpr(id, TIntArray)
-          tcExpr(index, TInt)
-          tcExpr(expr, TInt)
+          tcExpr(id, TintArray)
+          tcExpr(index, Tint)
+          tcExpr(expr, Tint)
       }
     }
 
