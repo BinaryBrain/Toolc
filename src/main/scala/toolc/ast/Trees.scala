@@ -17,10 +17,10 @@ object Trees {
 
   sealed trait TypeTree extends Tree with Typed
   case class IntArrayType() extends TypeTree {
-    override def getType: Type = TintArray
+    override def getType: Type = TIntArray
   }
   case class IntType() extends TypeTree {
-    override def getType: Type = Tint
+    override def getType: Type = TInt
   }
   case class BooleanType() extends TypeTree {
     override def getType: Type = TBoolean
