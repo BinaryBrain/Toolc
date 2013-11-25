@@ -53,11 +53,12 @@ object Symbols {
     def lookupVar(n: String): Option[VariableSymbol] = members.get(n)
   }
 
-  class MethodSymbol(val name: String, val classSymbol: ClassSymbol, val returnType : Trees.TypeTree) extends Symbol {
+  class MethodSymbol(val name: String, val classSymbol: ClassSymbol) extends Symbol {
     var params = Map[String,VariableSymbol]()
     var members = Map[String,VariableSymbol]()
     var argList: List[VariableSymbol] = Nil
     var overridden : Option[MethodSymbol] = None //TODO Use this field
+    var returnType: Trees.TypeTree = null 
 
     def lookupVar(n: String): Option[VariableSymbol] = 
       if(!params.get(n).isEmpty) params.get(n)
@@ -65,8 +66,7 @@ object Symbols {
       else classSymbol.lookupVar(n)
   }
 
-  class VariableSymbol(val name: String, val tpe: Trees.TypeTree) extends Symbol {
+  class VariableSymbol(val name: String) extends Symbol {
     var used: Boolean = false
-    // tpe is for recording type of VariableSymbol
   }
 }

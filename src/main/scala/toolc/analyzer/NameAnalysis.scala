@@ -46,7 +46,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
       // Collect fields
       c.vars.foreach { v: VarDecl =>
-        val vs: VariableSymbol = new VariableSymbol(v.id.value, v.tpe)
+        val vs: VariableSymbol = new VariableSymbol(v.id.value)
         v.setSymbol(vs)
         vs.setPos(v)
         v.id.setSymbol(vs)
@@ -60,7 +60,8 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
       // Collect methods
       c.methods.foreach { m: MethodDecl =>
-        val ms: MethodSymbol = new MethodSymbol(m.id.value, cs, m.retType)
+        val ms: MethodSymbol = new MethodSymbol(m.id.value, cs)
+        ms.returnType = m.retType
         m.setSymbol(ms)
         ms.setPos(m)
         m.id.setSymbol(ms)
@@ -73,7 +74,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
         // Collect method args
         m.args.foreach { a: Formal =>
-          val as: VariableSymbol = new VariableSymbol(a.id.value, a.tpe)
+          val as: VariableSymbol = new VariableSymbol(a.id.value)
           a.setSymbol(as)
           as.setPos(a)
           a.id.setSymbol(as)
@@ -93,7 +94,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
         // Collect local variable
         m.vars.foreach { v: VarDecl =>
-          val vs: VariableSymbol = new VariableSymbol(v.id.value, v.tpe)
+          val vs: VariableSymbol = new VariableSymbol(v.id.value)
           v.setSymbol(vs)
           vs.setPos(v)
           v.id.setSymbol(vs)
@@ -266,34 +267,44 @@ object NameAnalysis extends Pipeline[Program, Program] {
     	cs.setType(new Types.TObject(cs))
     }
     
-    gs.classes.foreach{ case (_, cs) => 
+    prog.classes.foreach{ c: ClassDecl => 
     	
       // Set types of fields
-      cs.members.foreach{ case (_, vs) =>
-      	setTypeOfVariableSymbol(vs)
+      c.vars.foreach{ v:VarDecl =>
+      	setTypeOfVariableSymbol(v)
       }
       
-      cs.methods.foreach{ case (_, ms) =>
+      c.methods.foreach{ m:MethodDecl =>
         
         // Set types of arguments
-      	ms.params.foreach{ case (_, vs) =>
-      	  setTypeOfVariableSymbol(vs)
+      	m.args.foreach{ f:Formal =>
+      	  setTypeOfFormal(f)
       	}
       	
       	// Set types of local variables
-      	ms.members.foreach{ case (_, vs) =>
-      		setTypeOfVariableSymbol(vs)
+      	m.vars.foreach{ v:VarDecl =>
+      		setTypeOfVariableSymbol(v)
       	}
       }
     }
     
-    def setTypeOfVariableSymbol(vs: VariableSymbol): Unit = {
-      vs.tpe match {
-        case Trees.IntType() => vs.setType(Types.TInt)
-        case Trees.IntArrayType() => vs.setType(Types.TIntArray)
-        case Trees.BooleanType() => vs.setType(Types.TBool)
-        case Trees.StringType() => vs.setType(Types.TString)
-        case id: Trees.Identifier =>  vs.setType(id.getType)
+    def setTypeOfVariableSymbol(v: VarDecl): Unit = {
+      v.tpe match {
+        case Trees.IntType() => v.getSymbol.setType(Types.TInt)
+        case Trees.IntArrayType() => v.getSymbol.setType(Types.TIntArray)
+        case Trees.BooleanType() => v.getSymbol.setType(Types.TBool)
+        case Trees.StringType() => v.getSymbol.setType(Types.TString)
+        case id: Trees.Identifier =>  v.getSymbol.setType(id.getType)
+      }
+    }
+    
+    def setTypeOfFormal(f: Formal): Unit = {
+      f.tpe match {
+        case Trees.IntType() => f.getSymbol.setType(Types.TInt)
+        case Trees.IntArrayType() => f.getSymbol.setType(Types.TIntArray)
+        case Trees.BooleanType() => f.getSymbol.setType(Types.TBool)
+        case Trees.StringType() => f.getSymbol.setType(Types.TString)
+        case id: Trees.Identifier =>  f.getSymbol.setType(id.getType)
       }
     }
 
