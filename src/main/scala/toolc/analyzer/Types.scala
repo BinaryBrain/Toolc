@@ -27,17 +27,17 @@ object Types {
     override def toString = "[untyped]"
   }
 
-  case object Tint extends Type {
+  case object TInt extends Type {
     override def isSubTypeOf(tpe: Type): Boolean = tpe match {
-      case Tint => true
+      case TInt => true
       case _ => false
     }
     override def toString = "Int"
   }
   
-  case object TintArray extends Type {
+  case object TIntArray extends Type {
     override def isSubTypeOf(tpe: Type): Boolean = tpe match {
-      case TintArray => true
+      case TIntArray => true
       case _ => false
     }
     override def toString = "Int[]"
