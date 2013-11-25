@@ -78,7 +78,7 @@ object TypeChecking extends Pipeline[Program, Program] {
 
         case thiz: This =>
           thiz.getSymbol.getType
-          
+
         case NewIntArray(size: ExprTree) =>
           tcExpr(size, TInt)
           TIntArray
@@ -88,6 +88,8 @@ object TypeChecking extends Pipeline[Program, Program] {
           tcExpr(expr, TBool)
           TBool
       }
+
+      expr.setType(tpe)
 
       // Check result and return a valid type in case of error
       if (expected.isEmpty) {
@@ -103,7 +105,25 @@ object TypeChecking extends Pipeline[Program, Program] {
     }
 
     def tcStat(stat: StatTree): Unit = {
-      ???
+      stat match {
+        case Block(stats: List[StatTree]) =>
+          stats.foreach(tcStat(_))
+        case If(expr: ExprTree, thn: StatTree, els: Option[StatTree]) =>
+          tcExpr(expr, TBool)
+          tcStat(thn)
+          if(els.isDefined) tcStat(els.get)
+        case While(expr: ExprTree, stat: StatTree) =>
+          tcExpr(expr, TBool)
+          tcStat(stat)
+        case Println(expr: ExprTree) =>
+          tcExpr(expr, TInt, TString, TBool)
+        case Assign(id: Identifier, expr: ExprTree) =>
+          tcExpr(expr, id.getType)
+        case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) =>
+          tcExpr(id, TIntArray)
+          tcExpr(index, TInt)
+          tcExpr(expr, TInt)
+      }
     }
 
     prog
