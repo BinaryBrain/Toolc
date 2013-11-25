@@ -125,6 +125,10 @@ object TypeChecking extends Pipeline[Program, Program] {
           tcExpr(expr, TInt)
       }
     }
+    
+    if(ctx.reporter.hasErrors) {
+      fatal("There was some errors during type checking")
+    }
 
     prog
   }
