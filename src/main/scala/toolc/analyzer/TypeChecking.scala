@@ -20,7 +20,7 @@ object TypeChecking extends Pipeline[Program, Program] {
     prog.classes.foreach{ c:ClassDecl =>
       c.methods.foreach{m: MethodDecl =>
       	m.stats.foreach(tcStat(_))
-      	tcExpr(m.retExpr, m.getSymbol.getType)
+      	tcExpr(m.retExpr, m.retType.getType)
       } 
     }
 

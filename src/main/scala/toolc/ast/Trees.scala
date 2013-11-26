@@ -58,7 +58,8 @@ object Trees {
     // The type of the identifier depends on the type of the symbol
     override def getType: Type = getSymbol match {
       case cs: ClassSymbol =>
-        cs.getType
+        TObject(cs)
+        //cs.getType
 
       case ms: MethodSymbol =>
         sys.error("Requesting type of a method identifier.")
