@@ -26,6 +26,7 @@ object TypeChecking extends Pipeline[Program, Program] {
 
     def tcExpr(expr: ExprTree, expected: Type*): Type = {
       val tpe: Type = expr match {
+        
         case And(lhs: ExprTree, rhs: ExprTree) =>
           tcExpr(lhs, TBoolean)
           tcExpr(rhs, TBoolean)
@@ -56,7 +57,7 @@ object TypeChecking extends Pipeline[Program, Program] {
           TBoolean
         case Equals(lhs: ExprTree, rhs: ExprTree) =>
           val tpe1 = tcExpr(lhs, TInt, TIntArray, TBoolean, TString, Types.anyObject)
-          val tpe2 = tcExpr(lhs, TInt, TIntArray, TBoolean, TString, Types.anyObject)
+          val tpe2 = tcExpr(rhs, TInt, TIntArray, TBoolean, TString, Types.anyObject)
           if (tpe1 == tpe2 || (tpe1.isSubTypeOf(Types.anyObject) && tpe2.isSubTypeOf(Types.anyObject)))
             TBoolean
           else
