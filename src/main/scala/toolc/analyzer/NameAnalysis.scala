@@ -282,7 +282,6 @@ object NameAnalysis extends Pipeline[Program, Program] {
             val argListZip = ms.params.zip(meth.get.params)
             argListZip.foreach {
               case (arg, argOverriden) =>
-                println(arg._2.getType, argOverriden._2.getType)
                 if (arg._2.getType != argOverriden._2.getType) {
                   errorFound("illegal attempt to overload method (Wrong argument type) " + ms.name + " at " + arg._2.position)
                 }

@@ -77,7 +77,7 @@ object TypeChecking extends Pipeline[Program, Program] {
           
           val cs = objClass match {
             case TObject(cs: ClassSymbol)  => cs
-            case _ => fatal("Error checking method call")
+            case _ => return TError
           }
           
           var ms: MethodSymbol = null
@@ -89,8 +89,10 @@ object TypeChecking extends Pipeline[Program, Program] {
 	            case None => parent = parent.get.parent;
 	          }
           }
-          if(ms == null)
-            fatal("method "+mc.meth.value+" is not defined", mc.meth)
+          if(ms == null) {
+            error("method "+mc.meth.value+" is not defined", mc.meth)
+            return TError
+          }
             
           
           
