@@ -11,14 +11,30 @@ import analyzer._
 object Main {
 
   def processOptions(args: Array[String]): Context = {
-    val (opts, files) = args.toSeq.partition(_.startsWith("--"))
+
     val reporter = new Reporter()
+    var outDir: Option[File] = None
+    var files: List[File] = Nil
+
+    def processOption(args: List[String]): Unit = args match {
+      case "-d" :: out :: args =>
+        outDir = Some(new File(out))
+        processOption(args)
+
+      case f ::args =>
+        files = new File(f) :: files
+        processOption(args)
+
+      case Nil =>
+    }
+
+    processOption(args.toList)
 
     if (files.size != 1) {
       reporter.fatal("Exactly one file expected, "+files.size+" file(s) given.")
     }
 
-    Context(reporter = reporter, file = new File(files.head))
+    Context(reporter = reporter, file = files.head, outDir = outDir)
   }
 
 
