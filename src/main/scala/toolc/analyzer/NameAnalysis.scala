@@ -23,7 +23,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
     //========================================================
     // COLLECT DEFINITIONS
     //========================================================
-    
+
     //Collect main class
     prog.main.setSymbol(new ClassSymbol(prog.main.id.value))
     prog.main.id.setSymbol(prog.main.getSymbol)
@@ -115,7 +115,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
         }
       }
     }
-    
+
     //========================================================
     // NAME BINDING
     //========================================================
@@ -123,7 +123,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
     prog.main.stats.foreach { s: StatTree =>
       nameBinding(s, prog.main.getSymbol)
     }
-    
+
     //========================================================
     // SET PARENT
     //========================================================
@@ -136,7 +136,7 @@ object NameAnalysis extends Pipeline[Program, Program] {
         case Some(id) => gs.lookupClass(id.value)
       }
     }
-    
+
     //========================================================
     // CHECK INHERITANCE CYCLE
     //========================================================
@@ -146,23 +146,23 @@ object NameAnalysis extends Pipeline[Program, Program] {
       var continue = true
       while (accu.head.parent.isDefined && continue) {
         if (accu.contains(accu.head.parent.get)) {
-        	errorFound("cycle in inheritance hierarchy of class '" + c.id.value + "' at " + c.id.position)
-        	continue = false
+          errorFound("cycle in inheritance hierarchy of class '" + c.id.value + "' at " + c.id.position)
+          continue = false
         }
         accu = accu.head.parent.get :: accu
       }
     }
-    
+
     //========================================================
     // FIRST GUARD
     //========================================================
-    
+
     // There was some errors
     if (!errors.isEmpty) {
       errors.foreach(error(_))
       fatal("Errors in name analysis phase after collecting definitions")
     }
-    
+
     //========================================================
     // CHECK OVERLOADING/OVERRIDING
     //========================================================
@@ -184,25 +184,26 @@ object NameAnalysis extends Pipeline[Program, Program] {
         while (parentClass.isDefined) {
           var meth = parentClass.get.lookupMethod(ms.name)
           if (meth.isDefined) {
-            
+
             // Check same number of arguments
             if (meth.get.argList.size != ms.argList.size) {
               errorFound("illegal attempt to overload method (number of arguments do not match) " + ms.name + " at " + ms.position)
             }
-            
+
             // Check exact same argument's types
             val argListZip = ms.argList.zip(meth.get.argList)
-            argListZip.foreach{ case (arg, argOverriden) =>
-              if(arg.getType != argOverriden.getType) {
-                errorFound("illegal attempt to overload method (Wrong argument type) " + ms.name + " at " + arg.position)
-              }
+            argListZip.foreach {
+              case (arg, argOverriden) =>
+                if (arg.getType != argOverriden.getType) {
+                  errorFound("illegal attempt to overload method (Wrong argument type) " + ms.name + " at " + arg.position)
+                }
             }
-            
+
             // Check exact same return type
-            if(ms.returnType.getType != meth.get.returnType.getType) {
+            if (ms.returnType.getType != meth.get.returnType.getType) {
               errorFound("illegal attempt to overload method (Wrong return type) " + ms.name + " at " + ms.position)
             }
-            
+
           }
           parentClass = parentClass.get.parent
         }
@@ -256,55 +257,36 @@ object NameAnalysis extends Pipeline[Program, Program] {
         nameBindingExpr(m.retExpr, ms)
       }
     }
-    
+
     //========================================================
     // SETTING TYPES
     //========================================================
-    
+
     // Set types of classSymbols
     gs.mainClass.setType(new Types.TObject(gs.mainClass))
-    gs.classes.foreach{ case (_, cs) =>
-    	cs.setType(new Types.TObject(cs))
+    gs.classes.foreach {
+      case (_, cs) =>
+        cs.setType(new Types.TObject(cs))
     }
-    
-    prog.classes.foreach{ c: ClassDecl => 
-    	
+
+    prog.classes.foreach { c: ClassDecl =>
+
       // Set types of fields
-      c.vars.foreach{ v:VarDecl =>
-      	setTypeOfVariableSymbol(v)
+      c.vars.foreach { v: VarDecl =>
+        v.getSymbol.setType(v.tpe.getType)
       }
-      
-      c.methods.foreach{ m:MethodDecl =>
-        
+
+      c.methods.foreach { m: MethodDecl =>
+
         // Set types of arguments
-      	m.args.foreach{ f:Formal =>
-      	  setTypeOfFormal(f)
-      	}
-      	
-      	// Set types of local variables
-      	m.vars.foreach{ v:VarDecl =>
-      		setTypeOfVariableSymbol(v)
-      	}
-      }
-    }
-    
-    def setTypeOfVariableSymbol(v: VarDecl): Unit = {
-      v.tpe match {
-        case Trees.IntType() => v.getSymbol.setType(Types.TInt)
-        case Trees.IntArrayType() => v.getSymbol.setType(Types.TIntArray)
-        case Trees.BooleanType() => v.getSymbol.setType(Types.TBoolean)
-        case Trees.StringType() => v.getSymbol.setType(Types.TString)
-        case id: Trees.Identifier =>  v.getSymbol.setType(id.getType)
-      }
-    }
-    
-    def setTypeOfFormal(f: Formal): Unit = {
-      f.tpe match {
-        case Trees.IntType() => f.getSymbol.setType(Types.TInt)
-        case Trees.IntArrayType() => f.getSymbol.setType(Types.TIntArray)
-        case Trees.BooleanType() => f.getSymbol.setType(Types.TBoolean)
-        case Trees.StringType() => f.getSymbol.setType(Types.TString)
-        case id: Trees.Identifier =>  f.getSymbol.setType(id.getType)
+        m.args.foreach { f: Formal =>
+          f.getSymbol.setType(f.tpe.getType)
+        }
+
+        // Set types of local variables
+        m.vars.foreach { v: VarDecl =>
+          v.getSymbol.setType(v.tpe.getType)
+        }
       }
     }
 
@@ -370,10 +352,10 @@ object NameAnalysis extends Pipeline[Program, Program] {
 
     def lookUpId(id: Identifier, s: Symbol): Unit = {
       lookUpVar(id, s) match {
-        case Some(_) => 
+        case Some(_) =>
           id.setSymbol(lookUpVar(id, s).get)
           lookUpVar(id, s).get.used = true
-        
+
         case None => s match {
           case ms: MethodSymbol => ms.classSymbol.parent match {
             case None => errorFound("undefined var '" + id.value + "' at " + id.position)
@@ -399,31 +381,31 @@ object NameAnalysis extends Pipeline[Program, Program] {
     def errorFound(errMsg: String): Unit = {
       errors = errors ::: List(errMsg)
     }
-    
+
     // Output warnings about unused variable/field
     prog.classes.foreach { c: ClassDecl =>
       val cs: ClassSymbol = c.getSymbol
-      
-      for((name, vs) <- cs.members) {
-        if(!vs.used) {
+
+      for ((name, vs) <- cs.members) {
+        if (!vs.used) {
           warning("Unused field " + name + " in class " + cs.name, vs)
         }
       }
-      
-      for((methodName, ms) <- cs.methods) {
-        
-        for((argName, vs) <- ms.params) {
-          if(!vs.used) {
+
+      for ((methodName, ms) <- cs.methods) {
+
+        for ((argName, vs) <- ms.params) {
+          if (!vs.used) {
             warning("Unused argument " + argName + " in method " + ms.name + " in class " + cs.name, vs)
           }
         }
-        
-        for((varName, vs) <- ms.members) {
-          if(!vs.used) {
+
+        for ((varName, vs) <- ms.members) {
+          if (!vs.used) {
             warning("Unused local variable " + varName + " in method " + ms.name + " in class " + cs.name, vs)
           }
         }
-        
+
       }
     }
 

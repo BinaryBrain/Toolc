@@ -14,6 +14,15 @@ object TypeChecking extends Pipeline[Program, Program] {
    */
   def run(ctx: Context)(prog: Program): Program = {
     import ctx.reporter._
+    
+    prog.main.stats.foreach(tcStat(_))
+    
+    prog.classes.foreach{ c:ClassDecl =>
+      c.methods.foreach{m: MethodDecl =>
+      	m.stats.foreach(tcStat(_))
+      	tcExpr(m.retExpr, m.retType.getType)
+      } 
+    }
 
     def tcExpr(expr: ExprTree, expected: Type*): Type = {
       val tpe: Type = expr match {
@@ -60,10 +69,42 @@ object TypeChecking extends Pipeline[Program, Program] {
           tcExpr(arr, TIntArray)
           TInt
         case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) =>
-          // tcExpr(obj, classe dans laquelle meth est dŽfinie)
-          // tcExpr pour chaque argument doit tre de bon type (ou sous-type)
+          
+          val objClass = tcExpr(obj, Types.anyObject)
+          
+          val cs = objClass match {
+            case TObject(cs: ClassSymbol)  => cs
+            case _ => fatal("Error checking method call")
+          }
+          
+          if(!cs.lookupMethod(meth.value).isDefined) {
+            error("Undeclared method "+ meth.value + " in class " + cs.name)
+          }
+          /*
+          val ms: MethodSymbol = meth.getSymbol match {
+            case m: MethodSymbol => m
+            case _ => fatal("Identifier for methodSymbol is not one") // TODO Sys.error
+          }*/
+          
+          var ms: MethodSymbol = null
+          var found = false
+          var parent: Option[ClassSymbol] = Some(cs);
+          while(parent.isDefined && !found) {
+	          parent.get.lookupMethod(meth.value) match {
+	            case Some(methSym) => found = true; ms = methSym
+	            case None => println(parent.get); parent = parent.get.parent;
+	          }
+          }
+          if(ms == null)
+            fatal("method "+meth.value+" is not defined", meth)
+          
+          val zippedArgs = args.zip(ms.argList)
+          zippedArgs.foreach{ case (arg, mArg) =>
+            tcExpr(arg, mArg.getType)
+          }
+          
           // Retourner type de retour de meth
-          TBoolean
+          ms.returnType.getType
         case IntLit(value: Int) =>
           TInt
         case StringLit(value: String) =>

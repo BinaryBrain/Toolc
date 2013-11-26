@@ -2,6 +2,7 @@ package toolc
 package ast
 
 import Trees._
+import toolc.analyzer.Symbols
 
 object Printer {
   var i = 0;
@@ -133,7 +134,7 @@ object Printer {
         "false"
         
       case id: Identifier =>
-        id.value + "#" + id.getSymbol.id
+        id.value + "#" + id.getSymbol.id + id.getType
        
       case thiz: This =>
         "this" + "#" + thiz.getSymbol.id
