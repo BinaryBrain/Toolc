@@ -62,7 +62,7 @@ object Trees {
 
       case ms: MethodSymbol =>
         //TODO sys.error("Requesting type of a method identifier.")
-        TUntyped
+        ms.getType
 
       case vs: VariableSymbol =>
         vs.getType

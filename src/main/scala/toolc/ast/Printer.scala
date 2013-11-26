@@ -118,7 +118,7 @@ object Printer {
         apply(arr) + ".length"
         
       case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) =>
-        apply(obj) + "." + meth.value + "#" + meth.getSymbol.id + "(" + args.map(apply(_)).mkString(",") +
+        apply(obj) + "." + meth.value + "#" + meth.getSymbol.id +"(" + args.map(apply(_)).mkString(",") +
         ")"
         
       case IntLit(value: Int) =>
@@ -137,7 +137,7 @@ object Printer {
         id.value + "#" + id.getSymbol.id //+ id.getType
        
       case thiz: This =>
-        "this" + "#" + thiz.getSymbol.id
+        "this" + "#" + thiz.getSymbol.id //+ thiz.getType
         
       case NewIntArray(size: ExprTree) =>
         "new Int[" + apply(size) + "]"
