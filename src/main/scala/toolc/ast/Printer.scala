@@ -33,7 +33,7 @@ object Printer {
         
       case m: MethodDecl =>
         i = i+1
-        val s = "\n" + indent(i) + "def " + apply(m.id) + "("+m.args.map(apply(_)).mkString(", ")+") : "+apply(m.retType)+" = {\n"+
+        val s = "\n" + indent(i) + "def " + apply(m.id) +"("+m.args.map(apply(_)).mkString(", ")+") : "+apply(m.retType)+" = {\n"+
           m.vars.map(apply(_)).mkString + "\n" + m.stats.map(apply(_)).mkString + indent(i+1) + "return "+apply(m.retExpr)+";\n"+
         indent(i)+"}\n"
         i = i-1
@@ -118,7 +118,7 @@ object Printer {
         apply(arr) + ".length"
         
       case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) =>
-        apply(obj) + "." + meth.value + "#" + meth.getSymbol.id +"(" + args.map(apply(_)).mkString(",") +
+        apply(obj) + "." + meth.value + "#" + meth.getSymbol.id + "(" + args.map(apply(_)).mkString(",") +
         ")"
         
       case IntLit(value: Int) =>

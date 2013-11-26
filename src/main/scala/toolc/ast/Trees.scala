@@ -61,8 +61,8 @@ object Trees {
         cs.getType
 
       case ms: MethodSymbol =>
-        //TODO sys.error("Requesting type of a method identifier.")
-        ms.getType
+        sys.error("Requesting type of a method identifier.")
+        //ms.getType
 
       case vs: VariableSymbol =>
         vs.getType
