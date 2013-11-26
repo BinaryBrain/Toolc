@@ -79,9 +79,9 @@ object TypeChecking extends Pipeline[Program, Program] {
             case _ => fatal("Error checking method call")
           }
           
-          if(!cs.lookupMethod(mc.meth.value).isDefined) {
-            error("Undeclared method "+ mc.meth.value + " in class " + cs.name)
-          }
+//          if(!cs.lookupMethod(mc.meth.value).isDefined) {
+//            error("Undeclared method "+ mc.meth.value + " in class " + cs.name)
+//          }
           
           var ms: MethodSymbol = null
           var found = false

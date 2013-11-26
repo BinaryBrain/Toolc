@@ -163,52 +163,6 @@ object NameAnalysis extends Pipeline[Program, Program] {
       fatal("Errors in name analysis phase after collecting definitions")
     }
 
-    //========================================================
-    // CHECK OVERLOADING/OVERRIDING
-    //========================================================
-
-    for ((_, cs) <- gs.classes) {
-      for ((_, vs) <- cs.members) {
-        var parentClass = cs.parent
-        while (parentClass.isDefined) {
-          var vaar = parentClass.get.lookupVar(vs.name)
-          if (vaar.isDefined) {
-            errorFound("illegal attempt to override field " + vs.name + " at " + vs.position)
-          }
-          parentClass = parentClass.get.parent
-        }
-      }
-
-      for ((_, ms) <- cs.methods) {
-        var parentClass = cs.parent
-        while (parentClass.isDefined) {
-          var meth = parentClass.get.lookupMethod(ms.name)
-          if (meth.isDefined) {
-
-            // Check same number of arguments
-            if (meth.get.argList.size != ms.argList.size) {
-              errorFound("illegal attempt to overload method (number of arguments do not match) " + ms.name + " at " + ms.position)
-            }
-
-            // Check exact same argument's types
-            val argListZip = ms.argList.zip(meth.get.argList)
-            argListZip.foreach {
-              case (arg, argOverriden) =>
-                if (arg.getType != argOverriden.getType) {
-                  errorFound("illegal attempt to overload method (Wrong argument type) " + ms.name + " at " + arg.position)
-                }
-            }
-
-            // Check exact same return type
-            if (ms.returnType.getType != meth.get.returnType.getType) {
-              errorFound("illegal attempt to overload method (Wrong return type) " + ms.name + " at " + ms.position)
-            }
-
-          }
-          parentClass = parentClass.get.parent
-        }
-      }
-    }
 
     prog.classes.foreach { c: ClassDecl =>
       val cs: ClassSymbol = c.getSymbol
@@ -255,6 +209,53 @@ object NameAnalysis extends Pipeline[Program, Program] {
         }
         m.stats.foreach(nameBinding(_, ms))
         nameBindingExpr(m.retExpr, ms)
+      }
+    }
+    
+    //========================================================
+    // CHECK OVERLOADING/OVERRIDING
+    //========================================================
+
+    for ((_, cs) <- gs.classes) {
+      for ((_, vs) <- cs.members) {
+        var parentClass = cs.parent
+        while (parentClass.isDefined) {
+          var vaar = parentClass.get.lookupVar(vs.name)
+          if (vaar.isDefined) {
+            errorFound("illegal attempt to override field " + vs.name + " at " + vs.position)
+          }
+          parentClass = parentClass.get.parent
+        }
+      }
+
+      for ((_, ms) <- cs.methods) {
+        var parentClass = cs.parent
+        while (parentClass.isDefined) {
+          var meth = parentClass.get.lookupMethod(ms.name)
+          if (meth.isDefined) {
+
+            // Check same number of arguments
+            if (meth.get.argList.size != ms.argList.size) {
+              errorFound("illegal attempt to overload method (number of arguments do not match) " + ms.name + " at " + ms.position)
+            }
+
+            // Check exact same argument's types
+            val argListZip = ms.argList.zip(meth.get.argList)
+            argListZip.foreach {
+              case (arg, argOverriden) =>
+                if (arg.getType != argOverriden.getType) {
+                  errorFound("illegal attempt to overload method (Wrong argument type) " + ms.name + " at " + arg.position)
+                }
+            }
+
+            // Check exact same return type
+            if (ms.returnType.getType != meth.get.returnType.getType) {
+              errorFound("illegal attempt to overload method (Wrong return type) " + ms.name + " at " + ms.position)
+            }
+
+          }
+          parentClass = parentClass.get.parent
+        }
       }
     }
 
