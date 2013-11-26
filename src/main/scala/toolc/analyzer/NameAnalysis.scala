@@ -216,52 +216,6 @@ object NameAnalysis extends Pipeline[Program, Program] {
       }
     }
     
-    //========================================================
-    // CHECK OVERLOADING/OVERRIDING
-    //========================================================
-
-    for ((_, cs) <- gs.classes) {
-      for ((_, vs) <- cs.members) {
-        var parentClass = cs.parent
-        while (parentClass.isDefined) {
-          var vaar = parentClass.get.lookupVar(vs.name)
-          if (vaar.isDefined) {
-            errorFound("illegal attempt to override field " + vs.name + " at " + vs.position)
-          }
-          parentClass = parentClass.get.parent
-        }
-      }
-
-      for ((_, ms) <- cs.methods) {
-        var parentClass = cs.parent
-        while (parentClass.isDefined) {
-          var meth = parentClass.get.lookupMethod(ms.name)
-          if (meth.isDefined) {
-
-            // Check same number of arguments
-            if (meth.get.argList.size != ms.argList.size) {
-              errorFound("illegal attempt to overload method (number of arguments do not match) " + ms.name + " at " + ms.position)
-            }
-
-            // Check exact same argument's types
-            val argListZip = ms.argList.zip(meth.get.argList)
-            argListZip.foreach {
-              case (arg, argOverriden) =>
-                if (arg.getType != argOverriden.getType) {
-                  errorFound("illegal attempt to overload method (Wrong argument type) " + ms.name + " at " + arg.position)
-                }
-            }
-
-            // Check exact same return type
-            if (ms.returnType.getType != meth.get.returnType.getType) {
-              errorFound("illegal attempt to overload method (Wrong return type) " + ms.name + " at " + ms.position)
-            }
-
-          }
-          parentClass = parentClass.get.parent
-        }
-      }
-    }
 
     //========================================================
     // SETTING TYPES
@@ -293,6 +247,54 @@ object NameAnalysis extends Pipeline[Program, Program] {
         // Set types of local variables
         m.vars.foreach { v: VarDecl =>
           v.getSymbol.setType(v.tpe.getType)
+        }
+      }
+    }
+    
+    //========================================================
+    // CHECK OVERLOADING/OVERRIDING
+    //========================================================
+
+    for ((_, cs) <- gs.classes) {
+      for ((_, vs) <- cs.members) {
+        var parentClass = cs.parent
+        while (parentClass.isDefined) {
+          var vaar = parentClass.get.lookupVar(vs.name)
+          if (vaar.isDefined) {
+            errorFound("illegal attempt to override field " + vs.name + " at " + vs.position)
+          }
+          parentClass = parentClass.get.parent
+        }
+      }
+
+      for ((_, ms) <- cs.methods) {
+        var parentClass = cs.parent
+        while (parentClass.isDefined) {
+          var meth = parentClass.get.lookupMethod(ms.name)
+          if (meth.isDefined) {
+
+            // Check same number of arguments
+            if (meth.get.argList.size != ms.argList.size) {
+              errorFound("illegal attempt to overload method (number of arguments do not match) " + ms.name + " at " + ms.position)
+            }
+
+            // Check exact same argument's types
+            val argListZip = ms.params.zip(meth.get.params)
+            argListZip.foreach {
+              case (arg, argOverriden) =>
+                println(arg._2.getType, argOverriden._2.getType)
+                if (arg._2.getType != argOverriden._2.getType) {
+                  errorFound("illegal attempt to overload method (Wrong argument type) " + ms.name + " at " + arg._2.position)
+                }
+            }
+
+            // Check exact same return type
+            if (ms.returnType.getType != meth.get.returnType.getType) {
+              errorFound("illegal attempt to overload method (Wrong return type) " + ms.name + " at " + ms.position)
+            }
+
+          }
+          parentClass = parentClass.get.parent
         }
       }
     }
