@@ -14,19 +14,19 @@ object TypeChecking extends Pipeline[Program, Program] {
    */
   def run(ctx: Context)(prog: Program): Program = {
     import ctx.reporter._
-    
+
     prog.main.stats.foreach(tcStat(_))
-    
-    prog.classes.foreach{ c:ClassDecl =>
-      c.methods.foreach{m: MethodDecl =>
-      	m.stats.foreach(tcStat(_))
-      	tcExpr(m.retExpr, m.retType.getType)
-      } 
+
+    prog.classes.foreach { c: ClassDecl =>
+      c.methods.foreach { m: MethodDecl =>
+        m.stats.foreach(tcStat(_))
+        tcExpr(m.retExpr, m.retType.getType)
+      }
     }
 
     def tcExpr(expr: ExprTree, expected: Type*): Type = {
       val tpe: Type = expr match {
-        
+
         case And(lhs: ExprTree, rhs: ExprTree) =>
           tcExpr(lhs, TBoolean)
           tcExpr(rhs, TBoolean)
@@ -57,7 +57,7 @@ object TypeChecking extends Pipeline[Program, Program] {
           TBoolean
         case Equals(lhs: ExprTree, rhs: ExprTree) =>
           val tpe1 = tcExpr(lhs, TInt, TIntArray, TBoolean, TString, Types.anyObject)
-          if(tpe1.isSubTypeOf(Types.anyObject)) {
+          if (tpe1.isSubTypeOf(Types.anyObject)) {
             tcExpr(rhs, Types.anyObject)
           } else {
             tcExpr(rhs, tpe1)
@@ -70,39 +70,45 @@ object TypeChecking extends Pipeline[Program, Program] {
         case ArrayLength(arr: ExprTree) =>
           tcExpr(arr, TIntArray)
           TInt
-          
+
         case mc: MethodCall =>
-          
+
           val objClass = tcExpr(mc.obj, Types.anyObject)
-          
+
           val cs = objClass match {
-            case TObject(cs: ClassSymbol)  => cs
-            case _ => return TError
+            case TObject(cs: ClassSymbol) => cs
+            case _ => return TError // error was already notified above
           }
-          
+
           var ms: MethodSymbol = null
           var found = false
           var parent: Option[ClassSymbol] = Some(cs);
-          while(parent.isDefined && !found) {
-	          parent.get.lookupMethod(mc.meth.value) match {
-	            case Some(methSym) => found = true; ms = methSym
-	            case None => parent = parent.get.parent;
-	          }
+          while (parent.isDefined && !found) {
+            parent.get.lookupMethod(mc.meth.value) match {
+              case Some(methSym) =>
+                found = true; ms = methSym
+              case None => parent = parent.get.parent;
+            }
           }
-          if(ms == null) {
-            error("method "+mc.meth.value+" is not defined", mc.meth)
-            return TError
+          if (ms == null) {
+            error("method " + mc.meth.value + " is not defined", mc.meth)
+
+            if (!expected.isEmpty) {
+              return expected.head
+            } else {
+              return TError
+            }
+
           }
-            
-          
-          
+
           val zippedArgs = mc.args.zip(ms.argList)
-          zippedArgs.foreach{ case (arg, mArg) =>
-            tcExpr(arg, mArg.getType)
+          zippedArgs.foreach {
+            case (arg, mArg) =>
+              tcExpr(arg, mArg.getType)
           }
-          
+
           mc.meth.setSymbol(ms)
-          
+
           // Retourner type de retour de meth
           ms.returnType.getType
         case IntLit(value: Int) =>
@@ -152,7 +158,7 @@ object TypeChecking extends Pipeline[Program, Program] {
         case If(expr: ExprTree, thn: StatTree, els: Option[StatTree]) =>
           tcExpr(expr, TBoolean)
           tcStat(thn)
-          if(els.isDefined) tcStat(els.get)
+          if (els.isDefined) tcStat(els.get)
         case While(expr: ExprTree, stat: StatTree) =>
           tcExpr(expr, TBoolean)
           tcStat(stat)
@@ -166,8 +172,8 @@ object TypeChecking extends Pipeline[Program, Program] {
           tcExpr(expr, TInt)
       }
     }
-    
-    if(ctx.reporter.hasErrors) {
+
+    if (ctx.reporter.hasErrors) {
       fatal("There was some errors during type checking")
     }
 
