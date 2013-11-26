@@ -277,6 +277,8 @@ object NameAnalysis extends Pipeline[Program, Program] {
       }
 
       c.methods.foreach { m: MethodDecl =>
+        
+        m.getSymbol.setType(m.retType.getType)
 
         // Set types of arguments
         m.args.foreach { f: Formal =>
