@@ -89,7 +89,7 @@ object TypeChecking extends Pipeline[Program, Program] {
           while(parent.isDefined && !found) {
 	          parent.get.lookupMethod(mc.meth.value) match {
 	            case Some(methSym) => found = true; ms = methSym
-	            case None => println(parent.get); parent = parent.get.parent;
+	            case None => parent = parent.get.parent;
 	          }
           }
           if(ms == null)

@@ -70,7 +70,7 @@ object Types {
         else {
           this.classSymbol.parent match {
             case None => false
-            case Some(p) => p.getType.isSubTypeOf(cs.getType)
+            case Some(p) => p.getType.isSubTypeOf(tpe)
           } 
         }
       case _ => false
