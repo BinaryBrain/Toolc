@@ -38,6 +38,10 @@ object NameAnalysis extends Pipeline[Program, Program] {
       cs.setPos(c)
       c.id.setSymbol(cs)
 
+      if(c.id.value == "Object") {
+        errorFound("illegal attempt to override class Object at " + c.id.position)
+      }
+      
       // Check if class already exist
       gs.lookupClass(c.id.value) match {
         case None => gs.classes = gs.classes + ((c.id.value, cs)) // TODO Check if the key is correct
