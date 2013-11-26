@@ -68,40 +68,40 @@ object TypeChecking extends Pipeline[Program, Program] {
         case ArrayLength(arr: ExprTree) =>
           tcExpr(arr, TIntArray)
           TInt
-        case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) =>
           
-          val objClass = tcExpr(obj, Types.anyObject)
+        case mc: MethodCall =>
+          
+          val objClass = tcExpr(mc.obj, Types.anyObject)
           
           val cs = objClass match {
             case TObject(cs: ClassSymbol)  => cs
             case _ => fatal("Error checking method call")
           }
           
-          if(!cs.lookupMethod(meth.value).isDefined) {
-            error("Undeclared method "+ meth.value + " in class " + cs.name)
+          if(!cs.lookupMethod(mc.meth.value).isDefined) {
+            error("Undeclared method "+ mc.meth.value + " in class " + cs.name)
           }
-          /*
-          val ms: MethodSymbol = meth.getSymbol match {
-            case m: MethodSymbol => m
-            case _ => fatal("Identifier for methodSymbol is not one") // TODO Sys.error
-          }*/
           
           var ms: MethodSymbol = null
           var found = false
           var parent: Option[ClassSymbol] = Some(cs);
           while(parent.isDefined && !found) {
-	          parent.get.lookupMethod(meth.value) match {
+	          parent.get.lookupMethod(mc.meth.value) match {
 	            case Some(methSym) => found = true; ms = methSym
 	            case None => println(parent.get); parent = parent.get.parent;
 	          }
           }
           if(ms == null)
-            fatal("method "+meth.value+" is not defined", meth)
+            fatal("method "+mc.meth.value+" is not defined", mc.meth)
+            
           
-          val zippedArgs = args.zip(ms.argList)
+          
+          val zippedArgs = mc.args.zip(ms.argList)
           zippedArgs.foreach{ case (arg, mArg) =>
             tcExpr(arg, mArg.getType)
           }
+          
+          mc.meth.setSymbol(ms)
           
           // Retourner type de retour de meth
           ms.returnType.getType
