@@ -1,55 +1,48 @@
-object CalculPGCD{
+object PGCD {
 	def main() : Unit = {
-        println("PGCD : " + new PGCD().Start(555, 666));
-    }
+		if(new Euclide().compute(3821732, 8098320)){
+			println("Ok");
+		}else{
+			println("Pas ok");
+		}
+	}
 }
 
-class PGCD {
-	var numberA: Int;
-	var numberB: Int;
-	
-	def Start(a : Int, b : Int) : Int = {
-		var aux: Int;
-		numberA = a;
-		numberB = b;
-		aux = this.Print();
-		aux = this.Calcul();
-		return aux;
-	}
-	
-	def Print() : Int = {
-		println("Premier numero: " + numberA + ".");
-		println("Deuxieme numero: " + numberB + ".");
+class Euclide {
+	def compute(nbr1 : Int, nbr2 : Int) : Bool = {
+		var maxNbr : Int;
+		var minNbr : Int;
+		var r1 : Int;
 		
-		return 42;
-	}
-	
-	def Calcul() : Int = {
-		var aux1 : Int;
-		var aux2 : Int;
-		var reste : Int;
-		var resultat : Int;
-		var pgcd : Int;
-		
-		if ( numberA < numberB) {
-			aux1 = numberB;
-			aux2 = numberA;
-		} else {
-			aux1 = numberA;
-			aux2 = numberB;
+		if(nbr1 < nbr2){
+			maxNbr = nbr2;
+			minNbr = nbr1;
+		}else{
+			maxNbr = nbr1;
+			minNbr = nbr2;
 		}
 		
-		while ( 0 < aux2 ) {
-			resultat = aux1 / aux2;
-			reste = aux1 - (aux2*resultat);
-			aux1 = aux2;
-			aux2 = reste;
+		while(0 < minNbr){
+			r1 = 1;
+			
+			while(((minNbr * r1) < maxNbr) || ((minNbr * r1) == maxNbr)){
+				r1 = r1 + 1;
+			}
+			
+			r1 = r1 - 1;
+			
+			r1 = maxNbr - (minNbr * r1);
+			maxNbr = minNbr;
+			minNbr = r1;
+			
 		}
 		
-		pgcd = aux1;
+		if(minNbr == 0){
+			println("PGCD (" + nbr1 + ", " + nbr2 + "): " +  maxNbr);
+		}else{
+			println("Negative value not allowed (" + nbr1 + ", " + nbr2 + ")");
+		}
 		
-		return pgcd;	
+		return true;
 	}
-	
 }
-

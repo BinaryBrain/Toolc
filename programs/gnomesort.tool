@@ -1,88 +1,76 @@
-object GnomeSort {
-	def main() : Unit = {
-		println("Fin" + new GS().Start(20));
-	}
+object QuickSort {
+    def main() : Unit = {
+        println(new QS().Start(10));
+    }
 }
 
-class GS{
-	var ar : Int[];
-	var size : Int;
-	
-	def Start(sz : Int) : Int = {
-		var trash : Int;
-		
-		trash = this.CreateArray(sz);
-		trash = this.Print();
-		println("**********************");
-		trash = this.GSort();
-		println("The array sorted");
-		trash = this.Print();
-		return 42;
-	
-	}
-	
-	def CreateArray(sze : Int) : Int = {
-		
-		size = sze;
-		ar = new Int[size];
+// This class contains the array of integers and
+// methods to initialize, print and sort the array
+// using GnomeSort
+class QS {
+    var number : Int[];
+    var size : Int;
 
-		ar[0] = 763;
-		ar[2] = 712;
-		ar[3] = 14;
-		ar[1] = 7;
-		ar[4] = 1264;
-		ar[5] = 76224;
-		ar[6] = 71;
-		ar[7] = 264;
-		ar[8] = 345;
-		ar[11-2] = 7632756/764 - 65;
-		ar[10] = 764+874-24+873/34;
-		ar[55/5] = 764/72846 + 11 - 89734 + 73465;
-		ar[12] = (764+78324)/896 - 90745*(8937 +948);
-		ar[13] = 764763 / 9864;
-		ar[14] = 9835;
-		ar[15] = 21;
-		ar[16] = 434;
-		ar[17] = 4;
-		ar[18] = 0;
-		ar[19] = 354;
-
-		
-		return 42;
-		}
-		
-		def Print() : Int = {
-        var i : Int;
-
-        i = 0 ;
-        while (i < size) {
-            println(ar[i]);
-            i = i + 1 ;
-        }
-        return 42 ;
+    // Invoke the Initialization, Sort and Printing
+    // Methods
+    def Start(sz : Int) : Int = {
+        var aux01 : Int;
+        aux01 = this.Init(sz);
+        aux01 = this.Print();
+        println(9999);
+        aux01 = size - 1 ;
+        aux01 = this.Sort();
+        aux01 = this.Print();
+        return 9999;
     }
 
-	
-	def GSort () : Int = {
-	var i : Int;
-	var tmp : Int;
-	i = 0;
+    // Sort array of integers using Quicksort method
+    def Sort() : Int = {
+        var pos : Int;
+        var temp : Int;
+        pos = 1;
+        while (pos < size) {
+            if (number[pos-1] < number[pos] || number[pos] == number[pos-1]) {
+                pos = pos + 1;
+            } else {
+                temp = number[pos];
+                number[pos] = number[pos-1];
+                number[pos - 1] = temp;
+                if (1 < pos) {
+                    pos = pos - 1;
+                }
+            }
+        }
+        return 1;
+    }
 
-	
-		
-		while (i < size) {
-			if (i == 0 || !(ar[i] < ar[i-1])) {
-				i = i + 1;
-			}
-			else {
-					tmp = ar[i]; 
-					ar[i] = ar[i-1];
-					i = i - 1;
-					ar[i] = tmp;
-				}
-		}
-		
-	return 42;
-	}
+    def Print() : Int = {
+        var j : Int;
+
+        j = 0 ;
+        while (j < (size)) {
+            println(number[j]);
+            j = j + 1 ;
+        }
+        return 0 ;
+    }
+
+    // Initialize array of integers
+    def Init(sz : Int) : Int = {
+        size = sz ;
+        number = new Int[sz] ;
+
+        number[0] = 20 ;
+        number[1] = 7  ; 
+        number[2] = 12 ;
+        number[3] = 18 ;
+        number[4] = 2  ; 
+        number[5] = 11 ;
+        number[6] = 6  ; 
+        number[7] = 9  ; 
+        number[8] = 19 ; 
+        number[9] = 5  ;
+
+        return 0 ;  
+    }
 }
-
