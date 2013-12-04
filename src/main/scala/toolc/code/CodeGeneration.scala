@@ -15,7 +15,7 @@ import toolc.analyzer.Types
 object CodeGeneration extends Pipeline[Program, Unit] {
   def PACKAGE_NAME = ""
   var slotFor: Map[Int, Int] = Map()
-  
+
   def run(ctx: Context)(prog: Program): Unit = {
     import ctx.reporter._
 
@@ -23,8 +23,9 @@ object CodeGeneration extends Pipeline[Program, Unit] {
     def generateClassFile(sourceName: String, ct: ClassDecl, dir: String): Unit = {
       // TODO: Create code handler, save to files ...
 
-      val classFile = new ClassFile(sourceName, if (ct.parent.isDefined) Some(ct.parent.get.value) else None)
-      classFile.setSourceFile(sourceName + ".tool");
+      val classFile = new ClassFile(ct.id.value, if (ct.parent.isDefined) Some(ct.parent.get.value) else None)
+      classFile.setSourceFile(sourceName);
+      classFile.addDefaultConstructor
 
       ct.vars.foreach { field: VarDecl =>
         classFile.addField(toByteCodeType(field.tpe), field.id.value);
@@ -38,7 +39,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
         generateMethodCode(ch, method)
       }
 
-      classFile.writeToFile(dir + sourceName + ".class");
+      classFile.writeToFile(dir + ct.id.value + ".class");
     }
 
     def toByteCodeType(tpe: TypeTree): String = {
@@ -48,6 +49,16 @@ object CodeGeneration extends Pipeline[Program, Unit] {
         case i: IntArrayType => return "[I"
         case i: StringType => return "Ljava/lang/String;"
         case Identifier(value: String) => return "L" + PACKAGE_NAME + "/" + value
+      }
+    }
+
+    def toByteCodeTypes(tpe: Type): String = {
+      tpe match {
+        case TInt => return "I"
+        case TBoolean => return "Z"
+        case TIntArray => return "[I"
+        case TString => return "Ljava/lang/String;"
+        case obj: TObject => return "L" + PACKAGE_NAME + "/" + obj.classSymbol.name
       }
     }
 
@@ -65,15 +76,23 @@ object CodeGeneration extends Pipeline[Program, Unit] {
       mt.vars.foreach { v: VarDecl =>
         slotFor.put(v.getSymbol.id, ch.getFreshVar)
       }
+
+      (mt.stats.map(compileStat(_, ch)) ::: List(compileExpr(mt.retExpr, ch)))
+        .foldLeft(ch)((ch, bcg) => ch << bcg)
+
+      ch << {mt.retExpr.getType match {
+        case TInt => IRETURN
+        case TBoolean => IRETURN
+        case _ => ARETURN
+      }}
       
-       (mt.stats.map(compileStat(_, ch)) ::: List(compileExpr(mt.retExpr, ch)))
-    		   .foldLeft(ch)((ch, bcg) => ch << bcg)
-      
-    }
+      ch.freeze
+      }
 
     def generateMainMethodCode(ch: CodeHandler, stmts: List[StatTree], cname: String): Unit = {
 
-      // TODO: Emit code
+      stmts.map(compileStat(_, ch))
+        .foldLeft(ch)((ch, bcg) => ch << bcg)
       ch.freeze
     }
 
@@ -139,16 +158,214 @@ object CodeGeneration extends Pipeline[Program, Unit] {
 
             case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) =>
               ch <<
-              	compileExpr(expr, ch) <<
-              	compileExpr(index, ch) <<
-              	ALoad(slotFor(id.getSymbol.id)) <<
-              	IASTORE
+                compileExpr(expr, ch) <<
+                compileExpr(index, ch) <<
+                ALoad(slotFor(id.getSymbol.id)) <<
+                IASTORE
           }
         }
     }
 
     def compileExpr(expr: ExprTree, ch: CodeHandler): AbstractByteCodeGenerator = {
-      return null;
+      (ch: CodeHandler) =>
+        {
+          expr match {
+            case And(lhs: ExprTree, rhs: ExprTree) =>
+              val elseLabel = ch.getFreshLabel("else")
+              val afterLabel = ch.getFreshLabel("after")
+              ch <<
+                compileExpr(lhs, ch) <<
+                IfEq(elseLabel) <<
+                compileExpr(rhs, ch) <<
+                Goto(afterLabel) <<
+                Label(elseLabel) <<
+                ICONST_0 <<
+                Label(afterLabel)
+            case Or(lhs: ExprTree, rhs: ExprTree) =>
+              val elseLabel = ch.getFreshLabel("else")
+              val afterLabel = ch.getFreshLabel("after")
+              ch <<
+                compileExpr(lhs, ch) <<
+                IfNe(elseLabel) <<
+                compileExpr(rhs, ch) <<
+                Goto(afterLabel) <<
+                Label(elseLabel) <<
+                ICONST_1 <<
+                Label(afterLabel)
+
+            case Plus(lhs: ExprTree, rhs: ExprTree) =>
+              lhs.getType match {
+                case TInt => rhs.getType match {
+                  case TInt =>
+                    ch <<
+                      compileExpr(lhs, ch) <<
+                      compileExpr(rhs, ch) <<
+                      IADD
+                  case TString =>
+                    ch <<
+                      DefaultNew("java/lang/StringBuilder") <<
+                      compileExpr(lhs, ch) <<
+                      InvokeVirtual("java/lang/StringBuilder", "append",
+                        "(I)Ljava/lang/StringBuilder;") <<
+                        compileExpr(rhs, ch) <<
+                        InvokeVirtual("java/lang/StringBuilder", "append",
+                          "(Ljava/lang/String;)Ljava/lang/StringBuilder;") <<
+                          InvokeSpecial("java/lang/StringBuilder", "toString", "()Ljava/lang/String;")
+                }
+                case TString => rhs.getType match {
+                  case TInt =>
+                    ch <<
+                      DefaultNew("java/lang/StringBuilder") <<
+                      compileExpr(lhs, ch) <<
+                      InvokeVirtual("java/lang/StringBuilder", "append",
+                        "(Ljava/lang/String;)Ljava/lang/StringBuilder;") <<
+                        compileExpr(rhs, ch) <<
+                        InvokeVirtual("java/lang/StringBuilder", "append",
+                          "(I)Ljava/lang/StringBuilder;") <<
+                          InvokeSpecial("java/lang/StringBuilder", "toString", "()Ljava/lang/String;")
+
+                  case TString =>
+                    ch <<
+                      DefaultNew("java/lang/StringBuilder") <<
+                      compileExpr(lhs, ch) <<
+                      InvokeVirtual("java/lang/StringBuilder", "append",
+                        "(Ljava/lang/String;)Ljava/lang/StringBuilder;") <<
+                        compileExpr(rhs, ch) <<
+                        InvokeVirtual("java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;") <<
+                        InvokeSpecial("java/lang/StringBuilder", "toString", "()Ljava/lang/String;")
+                }
+              }
+
+            case Minus(lhs: ExprTree, rhs: ExprTree) =>
+              ch <<
+                compileExpr(lhs, ch) <<
+                compileExpr(rhs, ch) <<
+                ISUB
+            case Times(lhs: ExprTree, rhs: ExprTree) =>
+              ch <<
+                compileExpr(lhs, ch) <<
+                compileExpr(rhs, ch) <<
+                IMUL
+            case Div(lhs: ExprTree, rhs: ExprTree) =>
+              ch <<
+                compileExpr(lhs, ch) <<
+                compileExpr(rhs, ch) <<
+                IDIV
+            case LessThan(lhs: ExprTree, rhs: ExprTree) =>
+              val trueLabel = ch.getFreshLabel("true")
+              val afterLabel = ch.getFreshLabel("after")
+              ch <<
+                compileExpr(lhs, ch) <<
+                compileExpr(rhs, ch) <<
+                If_ICmpLt(trueLabel) <<
+                ICONST_0 <<
+                Goto(afterLabel) <<
+                Label(trueLabel) <<
+                ICONST_1 <<
+                Label(afterLabel)
+            case Equals(lhs: ExprTree, rhs: ExprTree) =>
+              val equalLabel = ch.getFreshLabel("equal")
+              val afterLabel = ch.getFreshLabel("after")
+              lhs.getType match {
+                case TInt =>
+                  ch <<
+                    compileExpr(lhs, ch) <<
+                    compileExpr(rhs, ch) <<
+                    If_ICmpEq(equalLabel) <<
+                    ICONST_0 <<
+                    Goto(afterLabel) <<
+                    Label(equalLabel) <<
+                    ICONST_1 <<
+                    Label(afterLabel)
+
+                case TBoolean =>
+                  ch <<
+                    compileExpr(lhs, ch) <<
+                    compileExpr(rhs, ch) <<
+                    If_ICmpEq(equalLabel) <<
+                    ICONST_0 <<
+                    Goto(afterLabel) <<
+                    Label(equalLabel) <<
+                    ICONST_1 <<
+                    Label(afterLabel)
+
+                case _ =>
+                  ch <<
+                    compileExpr(lhs, ch) <<
+                    compileExpr(rhs, ch) <<
+                    If_ACmpEq(equalLabel) <<
+                    ICONST_0 <<
+                    Goto(afterLabel) <<
+                    Label(equalLabel) <<
+                    ICONST_1 <<
+                    Label(afterLabel)
+              }
+
+            case ArrayRead(arr: ExprTree, index: ExprTree) =>
+              ch <<
+                compileExpr(arr, ch) <<
+                compileExpr(index, ch) <<
+                IALOAD
+            case ArrayLength(arr: ExprTree) =>
+              ch <<
+                compileExpr(arr, ch) <<
+                ARRAYLENGTH
+            case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) =>
+
+              val ms = meth.getSymbol match {
+                case m: MethodSymbol => m
+                case _ => sys.error("Method call failed at code generation")
+              }
+
+              val methodName = meth.value;
+              val className = ms.classSymbol.name
+              val methodSig = "(" + ms.argList.foldLeft("")((acc, arg) => acc +
+                toByteCodeTypes(arg.getType)) + ")" + toByteCodeType(ms.returnType)
+
+              val s = (List(compileExpr(obj, ch)) ::: args.map(compileExpr(_, ch)))
+              s.foldLeft(ch)((ch, bcg) => ch << bcg) <<
+                InvokeVirtual(className, methodName, methodSig)
+            case IntLit(value: Int) =>
+              ch << Ldc(value)
+            case StringLit(value: String) =>
+              ch << Ldc(value)
+            case True() =>
+              ch << ICONST_1
+            case False() =>
+              ch << ICONST_0
+            case id: Identifier =>
+              id.getType match {
+                case TInt =>
+                  ch << ILoad(slotFor(id.getSymbol.id))
+                case TBoolean =>
+                  ch << ILoad(slotFor(id.getSymbol.id))
+                case _ =>
+                  ch << ALoad(slotFor(id.getSymbol.id))
+
+              }
+            case This() =>
+              ch << ALOAD_0
+            case NewIntArray(size: ExprTree) =>
+              ch <<
+                compileExpr(size, ch) <<
+                NEWARRAY
+            case New(tpe: Identifier) =>
+              ch << DefaultNew(tpe.value)
+            case Not(expr: ExprTree) =>
+              val trueLabel = ch.getFreshLabel("true")
+              val afterLabel = ch.getFreshLabel("after")
+              ch <<
+                compileExpr(expr, ch) <<
+                IfEq(trueLabel) <<
+                ICONST_0 <<
+                Goto(afterLabel) <<
+                Label(trueLabel) <<
+                ICONST_1 <<
+                Label(afterLabel)
+
+          }
+
+        }
     }
 
     val outDir = ctx.outDir.map(_.getPath + "/").getOrElse("./")
@@ -166,7 +383,11 @@ object CodeGeneration extends Pipeline[Program, Unit] {
     }
 
     // Now do the main method
-    // ...
+    val cf = new ClassFile(prog.main.id.value, None)
+    cf.addDefaultConstructor
+    val ch = cf.addMainMethod.codeHandler
+    generateMainMethodCode(ch, prog.main.stats, prog.main.id.value)
+    cf.writeToFile(outDir + prog.main.id.value + ".class");
   }
 
 }

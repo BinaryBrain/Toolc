@@ -2,11 +2,11 @@ package toolc
 
 import utils._
 import java.io.File
-
 import lexer._
 import ast._
 import eval._
 import analyzer._
+import toolc.code.CodeGeneration
 
 object Main {
 
@@ -44,18 +44,19 @@ object Main {
     val pipeline = Lexer andThen
                    Parser andThen
                    NameAnalysis andThen
-                   TypeChecking
+                   TypeChecking andThen
+                   CodeGeneration
 
-    val program = pipeline.run(ctx)(ctx.file)
+    pipeline.run(ctx)(ctx.file)
     
     /* Lexer lab
      * for (t <- tokens) {
       println(t)
     }*/
-    
-    // Parser Lab
-    val programPrettyPrint = Printer(program)
-    println(programPrettyPrint)
+//    
+//    // Parser Lab
+//    val programPrettyPrint = Printer(program)
+//    println(programPrettyPrint)
     
   }
 }
