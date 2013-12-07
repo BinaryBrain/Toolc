@@ -90,7 +90,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
       }
       
       
-      if(mt.id.value == "IsVampire") {
+      if(mt.id.value == "launch") {
     	  ch.print
       }
       ch.freeze
@@ -196,19 +196,19 @@ object CodeGeneration extends Pipeline[Program, Unit] {
               
               // For local vars
               if(slotFor.contains(id.getSymbol.id)) {
-              ch <<
-                compileExpr(expr, ch) <<
+              ch <<	
+              	ALoad(slotFor(id.getSymbol.id)) <<
                 compileExpr(index, ch) <<
-                ALoad(slotFor(id.getSymbol.id)) <<
+                compileExpr(expr, ch) <<
                 IASTORE
                 
                 // For fields
               } else {
                 ch <<
-                compileExpr(expr, ch) <<
-                compileExpr(index, ch) <<
                 ALOAD_0 <<
                 GetField(currentClass, id.value, "[I") <<
+                compileExpr(index, ch) <<
+                compileExpr(expr, ch) <<
                 IASTORE
                 
               }
@@ -413,7 +413,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
             case NewIntArray(size: ExprTree) =>
               ch <<
                 compileExpr(size, ch) <<
-                NewArray("[I")
+                NewArray(NewArray.types("T_INT"))
             case New(tpe: Identifier) =>
               ch << DefaultNew(tpe.value)
             case Not(expr: ExprTree) =>
