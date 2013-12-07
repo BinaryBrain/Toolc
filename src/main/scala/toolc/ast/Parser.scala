@@ -393,7 +393,7 @@ object Parser extends Pipeline[Iterator[Token], Program] {
       } else if (currentToken.kind == BANG) {
         val bangToken = currentToken
         eat(BANG)
-        val expr = parseExpr
+        val expr = parseFinalExpr // parseExpr
         new Not(expr).setPos(bangToken)
       } else {
         eat(LPAREN)
