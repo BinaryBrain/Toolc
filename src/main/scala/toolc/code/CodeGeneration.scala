@@ -49,7 +49,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
         case i: BooleanType => return "Z"
         case i: IntArrayType => return "[I"
         case i: StringType => return "Ljava/lang/String;"
-        case Identifier(value: String) => return "L" + PACKAGE_NAME + "/" + value
+        case Identifier(value: String) => return "L" + value+";"
       }
     }
 
@@ -59,7 +59,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
         case TBoolean => return "Z"
         case TIntArray => return "[I"
         case TString => return "Ljava/lang/String;"
-        case obj: TObject => return "L" + PACKAGE_NAME + "/" + obj.classSymbol.name
+        case obj: TObject => return "L" + obj.classSymbol.name+";"
         case _ => sys.error("Internal Error: Unknown Type in Code Generation")
       }
     }
@@ -88,7 +88,6 @@ object CodeGeneration extends Pipeline[Program, Unit] {
           case _ => ARETURN
         }
       }
-
       ch.freeze
     }
 
@@ -96,6 +95,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
 
       stmts.map(compileStat(_, ch))
         .foldLeft(ch)((ch, bcg) => ch << bcg)
+      ch << RETURN
       ch.freeze
     }
 
@@ -148,15 +148,19 @@ object CodeGeneration extends Pipeline[Program, Unit] {
                   ch <<
                     GetStatic("java/lang/System", "out", "Ljava/io/PrintStream;") <<
                     compileExpr(expr, ch) <<
-                    InvokeVirtual("java/io/PrintStream", "println", "(Ljava/lang/String;)V") <<
-                    RETURN
+                    InvokeVirtual("java/io/PrintStream", "println", "(Ljava/lang/String;)V")
 
                 case TInt =>
                   ch <<
                     GetStatic("java/lang/System", "out", "Ljava/io/PrintStream;") <<
                     compileExpr(expr, ch) <<
-                    InvokeVirtual("java/io/PrintStream", "println", "(I)V") <<
-                    RETURN
+                    InvokeVirtual("java/io/PrintStream", "println", "(I)V")
+                    
+                case TBoolean =>
+                  ch <<
+                    GetStatic("java/lang/System", "out", "Ljava/io/PrintStream;") <<
+                    compileExpr(expr, ch) <<
+                    InvokeVirtual("java/io/PrintStream", "println", "(Z)V")
 
                 case _ => sys.error("Internal error: println on wrong type in code generation");
               }
@@ -237,7 +241,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
                         compileExpr(rhs, ch) <<
                         InvokeVirtual("java/lang/StringBuilder", "append",
                           "(Ljava/lang/String;)Ljava/lang/StringBuilder;") <<
-                          InvokeSpecial("java/lang/StringBuilder", "toString", "()Ljava/lang/String;")
+                          InvokeVirtual("java/lang/StringBuilder", "toString", "()Ljava/lang/String;")
                   case _ => sys.error("Internal Error: Wrong type for plus in Code generation")
                 }
                 case TString => rhs.getType match {
@@ -250,7 +254,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
                         compileExpr(rhs, ch) <<
                         InvokeVirtual("java/lang/StringBuilder", "append",
                           "(I)Ljava/lang/StringBuilder;") <<
-                          InvokeSpecial("java/lang/StringBuilder", "toString", "()Ljava/lang/String;")
+                          InvokeVirtual("java/lang/StringBuilder", "toString", "()Ljava/lang/String;")
 
                   case TString =>
                     ch <<
@@ -260,7 +264,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
                         "(Ljava/lang/String;)Ljava/lang/StringBuilder;") <<
                         compileExpr(rhs, ch) <<
                         InvokeVirtual("java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;") <<
-                        InvokeSpecial("java/lang/StringBuilder", "toString", "()Ljava/lang/String;")
+                        InvokeVirtual("java/lang/StringBuilder", "toString", "()Ljava/lang/String;")
 
                   case _ => sys.error("Internal Error: Wrong type for plus in Code generation")
                 }
@@ -426,6 +430,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
 
     // Now do the main method
     val cf = new ClassFile(prog.main.id.value, None)
+    cf.setSourceFile(sourceName);
     cf.addDefaultConstructor
     val ch = cf.addMainMethod.codeHandler
     generateMainMethodCode(ch, prog.main.stats, prog.main.id.value)
