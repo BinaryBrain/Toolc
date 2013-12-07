@@ -88,6 +88,11 @@ object CodeGeneration extends Pipeline[Program, Unit] {
           case _ => ARETURN
         }
       }
+      
+      
+      if(mt.id.value == "IsVampire") {
+    	  ch.print
+      }
       ch.freeze
     }
 
@@ -188,11 +193,25 @@ object CodeGeneration extends Pipeline[Program, Unit] {
               }
 
             case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) =>
+              
+              // For local vars
+              if(slotFor.contains(id.getSymbol.id)) {
               ch <<
                 compileExpr(expr, ch) <<
                 compileExpr(index, ch) <<
                 ALoad(slotFor(id.getSymbol.id)) <<
                 IASTORE
+                
+                // For fields
+              } else {
+                ch <<
+                compileExpr(expr, ch) <<
+                compileExpr(index, ch) <<
+                ALOAD_0 <<
+                GetField(currentClass, id.value, "[I") <<
+                IASTORE
+                
+              }
           }
         }
     }
@@ -394,7 +413,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
             case NewIntArray(size: ExprTree) =>
               ch <<
                 compileExpr(size, ch) <<
-                NEWARRAY
+                NewArray("[I")
             case New(tpe: Identifier) =>
               ch << DefaultNew(tpe.value)
             case Not(expr: ExprTree) =>
