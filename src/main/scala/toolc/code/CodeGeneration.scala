@@ -15,13 +15,13 @@ import toolc.analyzer.Types
 object CodeGeneration extends Pipeline[Program, Unit] {
   def PACKAGE_NAME = ""
   var slotFor: Map[Int, Int] = Map()
+  var currentClass: String = "";
 
   def run(ctx: Context)(prog: Program): Unit = {
     import ctx.reporter._
 
     /** Writes the proper .class file in a given directory. An empty string for dir is equivalent to "./". */
     def generateClassFile(sourceName: String, ct: ClassDecl, dir: String): Unit = {
-      // TODO: Create code handler, save to files ...
 
       val classFile = new ClassFile(ct.id.value, if (ct.parent.isDefined) Some(ct.parent.get.value) else None)
       classFile.setSourceFile(sourceName);
@@ -36,6 +36,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
           toByteCodeType(arg.tpe)
         }).codeHandler
 
+        currentClass = ct.id.value;
         generateMethodCode(ch, method)
       }
 
@@ -59,6 +60,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
         case TIntArray => return "[I"
         case TString => return "Ljava/lang/String;"
         case obj: TObject => return "L" + PACKAGE_NAME + "/" + obj.classSymbol.name
+        case _ => sys.error("Internal Error: Unknown Type in Code Generation")
       }
     }
 
@@ -67,11 +69,10 @@ object CodeGeneration extends Pipeline[Program, Unit] {
 
     def generateMethodCode(ch: CodeHandler, mt: MethodDecl): Unit = {
       val methSym = mt.getSymbol
-      // TODO: Emit code
 
       slotFor.clear()
-      mt.args.foreach { arg: Formal =>
-        slotFor.put(arg.getSymbol.id, ch.getFreshVar)
+      for(i <- 1 to mt.args.length) {
+        slotFor.put(mt.args(i-1).getSymbol.id, i)
       }
       mt.vars.foreach { v: VarDecl =>
         slotFor.put(v.getSymbol.id, ch.getFreshVar)
@@ -80,14 +81,16 @@ object CodeGeneration extends Pipeline[Program, Unit] {
       (mt.stats.map(compileStat(_, ch)) ::: List(compileExpr(mt.retExpr, ch)))
         .foldLeft(ch)((ch, bcg) => ch << bcg)
 
-      ch << {mt.retExpr.getType match {
-        case TInt => IRETURN
-        case TBoolean => IRETURN
-        case _ => ARETURN
-      }}
-      
-      ch.freeze
+      ch << {
+        mt.retExpr.getType match {
+          case TInt => IRETURN
+          case TBoolean => IRETURN
+          case _ => ARETURN
+        }
       }
+
+      ch.freeze
+    }
 
     def generateMainMethodCode(ch: CodeHandler, stmts: List[StatTree], cname: String): Unit = {
 
@@ -102,7 +105,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
           stat match {
 
             case Block(stats: List[StatTree]) =>
-              ch
+              stats.foldLeft(ch)((ch, bcg) => ch << compileStat(bcg, ch)) // TODO: Is it really the same ch?
 
             case If(expr: ExprTree, thn: StatTree, els: Option[StatTree]) =>
               val afterLabel: String = ch.getFreshLabel("after")
@@ -138,23 +141,47 @@ object CodeGeneration extends Pipeline[Program, Unit] {
                 Label(afterLabel)
 
             case Println(expr: ExprTree) =>
-              ch <<
-                GetStatic("java/lang/System", "out", "Ljava/io/PrintStream;") <<
-                compileExpr(expr, ch) <<
-                InvokeVirtual("java/io/PrintStream", "println", "(Ljava/lang/String;)V") <<
-                RETURN
+
+              expr.getType match {
+
+                case TString =>
+                  ch <<
+                    GetStatic("java/lang/System", "out", "Ljava/io/PrintStream;") <<
+                    compileExpr(expr, ch) <<
+                    InvokeVirtual("java/io/PrintStream", "println", "(Ljava/lang/String;)V") <<
+                    RETURN
+
+                case TInt =>
+                  ch <<
+                    GetStatic("java/lang/System", "out", "Ljava/io/PrintStream;") <<
+                    compileExpr(expr, ch) <<
+                    InvokeVirtual("java/io/PrintStream", "println", "(I)V") <<
+                    RETURN
+
+                case _ => sys.error("Internal error: println on wrong type in code generation");
+              }
 
             case Assign(id: Identifier, expr: ExprTree) =>
-              ch <<
-                compileExpr(expr, ch) << {
-                  id.getType match {
-                    case TInt => IStore(slotFor(id.getSymbol.id))
-                    case TIntArray => AStore(slotFor(id.getSymbol.id))
-                    case TBoolean => IStore(slotFor(id.getSymbol.id))
-                    case TString => AStore(slotFor(id.getSymbol.id))
-                    case _ => AStore(slotFor(id.getSymbol.id)) // Object 
+
+              // If it's a local variable or argument
+              if (slotFor.contains(id.getSymbol.id)) {
+                ch <<
+                  compileExpr(expr, ch) << {
+                    id.getType match {
+                      case TInt => IStore(slotFor(id.getSymbol.id))
+                      case TIntArray => AStore(slotFor(id.getSymbol.id))
+                      case TBoolean => IStore(slotFor(id.getSymbol.id))
+                      case TString => AStore(slotFor(id.getSymbol.id))
+                      case _ => AStore(slotFor(id.getSymbol.id)) // Object 
+                    }
                   }
-                }
+              } // If it's a field
+              else {
+                ch <<
+                  ALOAD_0 <<
+                  compileExpr(expr, ch) <<
+                  PutField(currentClass, id.value, toByteCodeTypes(id.getType))
+              }
 
             case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) =>
               ch <<
@@ -211,6 +238,7 @@ object CodeGeneration extends Pipeline[Program, Unit] {
                         InvokeVirtual("java/lang/StringBuilder", "append",
                           "(Ljava/lang/String;)Ljava/lang/StringBuilder;") <<
                           InvokeSpecial("java/lang/StringBuilder", "toString", "()Ljava/lang/String;")
+                  case _ => sys.error("Internal Error: Wrong type for plus in Code generation")
                 }
                 case TString => rhs.getType match {
                   case TInt =>
@@ -233,7 +261,12 @@ object CodeGeneration extends Pipeline[Program, Unit] {
                         compileExpr(rhs, ch) <<
                         InvokeVirtual("java/lang/StringBuilder", "append", "(Ljava/lang/String;)Ljava/lang/StringBuilder;") <<
                         InvokeSpecial("java/lang/StringBuilder", "toString", "()Ljava/lang/String;")
+
+                  case _ => sys.error("Internal Error: Wrong type for plus in Code generation")
                 }
+
+                case _ => sys.error("Internal Error: Wrong type for plus in Code generation")
+
               }
 
             case Minus(lhs: ExprTree, rhs: ExprTree) =>
@@ -334,15 +367,24 @@ object CodeGeneration extends Pipeline[Program, Unit] {
             case False() =>
               ch << ICONST_0
             case id: Identifier =>
-              id.getType match {
-                case TInt =>
-                  ch << ILoad(slotFor(id.getSymbol.id))
-                case TBoolean =>
-                  ch << ILoad(slotFor(id.getSymbol.id))
-                case _ =>
-                  ch << ALoad(slotFor(id.getSymbol.id))
 
+              // If it's a local var or an arg
+              if (slotFor.contains(id.getSymbol.id)) {
+                id.getType match {
+                  case TInt =>
+                    ch << ILoad(slotFor(id.getSymbol.id))
+                  case TBoolean =>
+                    ch << ILoad(slotFor(id.getSymbol.id))
+                  case _ =>
+                    ch << ALoad(slotFor(id.getSymbol.id))
+                }
+              } // If it's a field
+              else {
+                ch <<
+                  ALOAD_0 <<
+                  GetField(currentClass, id.value, toByteCodeTypes(id.getType))
               }
+
             case This() =>
               ch << ALOAD_0
             case NewIntArray(size: ExprTree) =>
