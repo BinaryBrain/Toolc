@@ -7,6 +7,7 @@ import ast._
 import eval._
 import analyzer._
 import toolc.code.CodeGeneration
+import toolc.code.CodeGenerationLLVM
 
 object Main {
 
@@ -45,7 +46,7 @@ object Main {
                    Parser andThen
                    NameAnalysis andThen
                    TypeChecking andThen
-                   CodeGeneration
+                   CodeGenerationLLVM
 
     pipeline.run(ctx)(ctx.file)
     
