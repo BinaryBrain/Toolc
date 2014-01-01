@@ -14,11 +14,16 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
   def run(ctx: Context)(prog: Program): Unit = {
     import ctx.reporter._;
 
+    // generate assembly
     val headers = generateHeaders(ctx.file.getName());
+    val classes = prog.classes.map(generateClass(_))
     val main = generateMainMethod(prog);
+    
+    // Print the assembly
     println(headers)
     strConstants.foreach(println)
     println()
+    classes.foreach(println)
     println(main)
     val declarations = generateDeclarations()
     println(declarations)
@@ -74,6 +79,55 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     case New(tpe: Identifier) => ""
     case Not(expr: ExprTree) => ""
   }
+  
+  
+  
+  def generateClass(cl: ClassDecl): String = {
+    var s: String = ""
+    val className = cl.id.value
+    
+    // struct for the class with fields and a vtable
+    s = s +
+    	"%struct." + className.toUpperCase() + " = type { %struct." +
+    	className.toUpperCase() + "_VTABLE* }\n" // TODO add fields
+    	
+    // struct for the vtable
+    s = s +
+    	"%struct." + className.toUpperCase() + "_VTABLE = type { " +
+    	cl.methods.foldLeft("")((acc, m) => acc + methodSignature(cl, m)) +
+    	"}\n"
+    	
+   // global vtable
+   s = s +
+   	   "@" + className.toLowerCase() + "_vtable = global %struct." +
+   	   className.toUpperCase() + "_VTABLE { " +	
+   	   cl.methods.foldLeft("")((acc, m) => acc + methodSignatureWithName(cl, m)) +
+   	   "}, align 8\n"
+    	
+    return s
+  }
+  
+  
+  def methodSignature(cl: ClassDecl, m: MethodDecl): String = {
+    typeOf(m.retType) + " (" +typeOf(cl.id) + ", " + m.args.map(typeOf(_)).mkString(", ") + ")* "
+  }
+  
+  def methodSignatureWithName(cl: ClassDecl, m: MethodDecl): String = {
+    typeOf(m.retType) + " (" +typeOf(cl.id) + ", " + m.args.map(typeOf(_)).mkString(", ") + ")* " +
+    		"@" + m.id.value + " "
+  }
+  
+  def typeOf(t: TypeTree): String = t match {
+    case IntType() => "i32"
+    case Identifier(id) => "%struct." + id.toUpperCase() + "*"
+    case _  => "Not yet implemented"
+  }
+  
+  def typeOf(f: Formal): String = typeOf(f.tpe)
+  
+  def generateMethod(cl: ClassDecl, m: MethodDecl): String = {
+    return ""
+  }
 
   def generateMainMethod(prog: Program): String = {
     "define i32 @main() nounwind ssp {\n" +
@@ -94,7 +148,8 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
   }
   
   def generateDeclarations(): String = {
-    "declare i32 @printf(i8*, ...)\n"
+    "declare i32 @printf(i8*, ...)\n" +
+    "declare i8* @malloc(i64)\n"
   }
 
   def addStrConstant(str: String): Unit = {
