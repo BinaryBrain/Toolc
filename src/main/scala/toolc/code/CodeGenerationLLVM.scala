@@ -40,7 +40,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         
       case Println(expr: ExprTree) =>
         var s = compileExpr(expr)
-        if(expr.getType == TInt) {
+        if(expr.getType == TInt || expr.getType == TBoolean) {
           s = s +
           "    " + freshReg + " = call i32 (i8*, ...)* @printf(i8* getelementptr" +
           " inbounds ([4 x i8]* @.str1, i32 0, i32 0), i32 " +
@@ -62,10 +62,31 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
   def compileExpr(expr: ExprTree): String = expr match {
     case And(lhs: ExprTree, rhs: ExprTree) => ""
     case Or(lhs: ExprTree, rhs: ExprTree) => ""
-    case Plus(lhs: ExprTree, rhs: ExprTree) => ""
-    case Minus(lhs: ExprTree, rhs: ExprTree) => ""
-    case Times(lhs: ExprTree, rhs: ExprTree) => ""
-    case Div(lhs: ExprTree, rhs: ExprTree) => ""
+      
+    case Plus(lhs: ExprTree, rhs: ExprTree) => // Handle string concatenation (with int too)
+      val l = compileExpr(lhs)
+      val savedReg = lastReg
+      val r = compileExpr(rhs)
+      l + r + "    " + freshReg + " = add nsw i32 " + savedReg + ", " + oldReg + "\n"
+      
+    case Minus(lhs: ExprTree, rhs: ExprTree) =>
+      val l = compileExpr(lhs)
+      val savedReg = lastReg
+      val r = compileExpr(rhs)
+      l + r + "    " + freshReg + " = sub nsw i32 " + savedReg + ", " + oldReg + "\n"
+      
+    case Times(lhs: ExprTree, rhs: ExprTree) =>
+      val l = compileExpr(lhs)
+      val savedReg = lastReg
+      val r = compileExpr(rhs)
+      l + r + "    " + freshReg + " = mul nsw i32 " + savedReg + ", " + oldReg + "\n"
+      
+    case Div(lhs: ExprTree, rhs: ExprTree) =>
+      val l = compileExpr(lhs)
+      val savedReg = lastReg
+      val r = compileExpr(rhs)
+      l + r + "    " + freshReg + " = sdiv i32 " + savedReg + ", " + oldReg + "\n"
+      
     case LessThan(lhs: ExprTree, rhs: ExprTree) => ""
     case Equals(lhs: ExprTree, rhs: ExprTree) => ""
     case ArrayRead(arr: ExprTree, index: ExprTree) => ""
@@ -84,8 +105,16 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         "@.str" + (strConstants.size - 1) + ", i32 0, i32 0), i8** " + lastReg + ", align 8\n" +
         "    " + freshReg + " = load i8** " + oldReg + ", align 8\n"
 
-    case True() => ""
-    case False() => ""
+    case True() =>
+      "    " + freshReg + " = alloca i32, align 4\n" +
+      "    " + "store i32 " + 1 + ", i32* " + lastReg + ", align 4\n" +
+      "    " + freshReg + " = load i32* " + oldReg + ", align 4\n"
+      
+    case False() =>
+      "    " + freshReg + " = alloca i32, align 4\n" +
+      "    " + "store i32 " + 0 + ", i32* " + lastReg + ", align 4\n" +
+      "    " + freshReg + " = load i32* " + oldReg + ", align 4\n"
+      
     case Identifier(value: String) => ""
     case This() => ""
     case NewIntArray(size: ExprTree) => ""
@@ -115,7 +144,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
    	   "@" + className.toLowerCase() + "_vtable = global %struct." +
    	   className.toUpperCase() + "_VTABLE { " +	
    	   cl.methods.foldLeft("")((acc, m) => acc + methodSignatureWithName(cl, m)) +
-   	   "}, align 8\n"
+   	   "}, align 8\n\n"
     	
     return s
   }
