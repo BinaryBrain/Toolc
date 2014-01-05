@@ -5,11 +5,13 @@ import ast.Trees._
 import analyzer.Symbols._
 import analyzer.Types._
 import utils._
+import java.io.PrintWriter
 
 object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
   var lastRegUsed = 0;
-  var strConstants: List[String] = List("@.str = private unnamed_addr constant [4 x i8] c\"%s\\0A\\00\"");
+  var strConstants: List[String] = List("@.str = private unnamed_addr constant [4 x i8] c\"%s\\0A\\00\"",
+      "@.str1 = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\"");
 
   def run(ctx: Context)(prog: Program): Unit = {
     import ctx.reporter._;
@@ -18,15 +20,13 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     val headers = generateHeaders(ctx.file.getName());
     val classes = prog.classes.map(generateClass(_))
     val main = generateMainMethod(prog);
-    
-    // Print the assembly
-    println(headers)
-    strConstants.foreach(println)
-    println()
-    classes.foreach(println)
-    println(main)
     val declarations = generateDeclarations()
-    println(declarations)
+    
+    // output file
+    val code = headers + strConstants.mkString("\n") + "\n\n" + classes.mkString("\n") +
+    	main + declarations
+    println(code)
+    Some(new PrintWriter(prog.main.id.value + ".ll")).foreach{p => p.write(code); p.close}
   }
 
   def compileStat(stat: StatTree): String = {
@@ -37,12 +37,21 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
       case If(expr: ExprTree, thn: StatTree, els: Option[StatTree]) => "Not Impl"
       case While(expr: ExprTree, stat: StatTree) => "Not Impl"
+        
       case Println(expr: ExprTree) =>
         var s = compileExpr(expr)
+        if(expr.getType == TInt) {
+          s = s +
+          "    " + freshReg + " = call i32 (i8*, ...)* @printf(i8* getelementptr" +
+          " inbounds ([4 x i8]* @.str1, i32 0, i32 0), i32 " +
+          oldReg + ")\n"
+        } else {
         s = s +
-          freshReg + " = call i32 (i8*, ...)* @printf(i8* getelementptr" +
+          "    " + freshReg + " = call i32 (i8*, ...)* @printf(i8* getelementptr" +
           " inbounds ([4 x i8]* @.str, i32 0, i32 0), i8* " +
           oldReg + ")\n"
+        }
+        
         return s
 
       case Assign(id: Identifier, expr: ExprTree) => "Not Impl"
@@ -62,14 +71,18 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     case ArrayRead(arr: ExprTree, index: ExprTree) => ""
     case ArrayLength(arr: ExprTree) => ""
     case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) => ""
-    case IntLit(value: Int) => ""
+    
+    case IntLit(value: Int) =>
+      "    " + freshReg + " = alloca i32, align 4\n" +
+      "    " + "store i32 " + value + ", i32* " + lastReg + ", align 4\n" +
+      "    " + freshReg + " = load i32* " + oldReg + ", align 4\n"
 
     case StringLit(value: String) =>
       addStrConstant(value)
-      freshReg + " = alloca i8*, align 8\n" +
-        "store i8* getelementptr inbounds ([" + (value.length() + 1) + " x i8]* " +
+      "    " + freshReg + " = alloca i8*, align 8\n" +
+        "    " + "store i8* getelementptr inbounds ([" + (value.length() + 1) + " x i8]* " +
         "@.str" + (strConstants.size - 1) + ", i32 0, i32 0), i8** " + lastReg + ", align 8\n" +
-        freshReg + " = load i8** " + oldReg + ", align 8\n"
+        "    " + freshReg + " = load i8** " + oldReg + ", align 8\n"
 
     case True() => ""
     case False() => ""
@@ -132,8 +145,8 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
   def generateMainMethod(prog: Program): String = {
     "define i32 @main() nounwind ssp {\n" +
     prog.main.stats.foldLeft("")((acc, stat) => acc + compileStat(stat)) +
-    "ret i32 0\n" +
-    "}\n"
+    "    ret i32 0\n" +
+    "}\n\n"
   }
 
   def generateHeaders(sourceName: String): String = {
@@ -143,7 +156,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       "\"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:" +
       "64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0" +
       ":64-s0:64:64-f80:128:128-n8:16:32:64\"\n" +
-      "target triple = \"x86_64-apple-macosx10.7.4\"\n" //TODO Change OS
+      "target triple = \"x86_64-apple-macosx10.7.4\"\n\n" //TODO Change OS
     return headers
   }
   
