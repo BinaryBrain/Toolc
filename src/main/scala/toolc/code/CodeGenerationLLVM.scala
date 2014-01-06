@@ -46,13 +46,13 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         if (expr.getType == TInt || expr.getType == TBoolean) {
           s = s :::
             List(freshReg + " = call i32 (i8*, ...)* @printf(i8* getelementptr" +
-            " inbounds ([4 x i8]* @.str1, i32 0, i32 0), i32 " +
-            oldReg + ")")
+              " inbounds ([4 x i8]* @.str1, i32 0, i32 0), i32 " +
+              oldReg + ")")
         } else {
           s = s :::
             List(freshReg + " = call i32 (i8*, ...)* @printf(i8* getelementptr" +
-            " inbounds ([4 x i8]* @.str, i32 0, i32 0), i8* " +
-            oldReg + ")")
+              " inbounds ([4 x i8]* @.str, i32 0, i32 0), i8* " +
+              oldReg + ")")
         }
 
         return s
@@ -97,7 +97,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) => Nil
 
     case IntLit(value: Int) =>
-        freshReg + " = alloca i32, align 4" ::
+      freshReg + " = alloca i32, align 4" ::
         "store i32 " + value + ", i32* " + lastReg + ", align 4" ::
         List(freshReg + " = load i32* " + oldReg + ", align 4")
 
@@ -115,7 +115,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
     case False() =>
       freshReg + " = alloca i32, align 4" ::
-        "store i32 " + 0 + ", i32* " + lastReg + ", align 4" :: 
+        "store i32 " + 0 + ", i32* " + lastReg + ", align 4" ::
         List(freshReg + " = load i32* " + oldReg + ", align 4")
 
     case Identifier(value: String) => Nil
@@ -131,20 +131,22 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
     // struct for the class with fields and a vtable
     s = s +
-      "%struct." + className.toUpperCase() + " = type { %struct." +
-      className.toUpperCase() + "_VTABLE* }\n" // TODO add fields
+      "%struct." + className + " = type { " +
+      "%struct." + className + "_vtable* " +
+      "}\n"
+    // TODO add fields
 
     // struct for the vtable
     s = s +
-      "%struct." + className.toUpperCase() + "_VTABLE = type { " +
-      cl.methods.foldLeft("")((acc, m) => acc + methodSignature(cl, m)) +
+      "%struct." + className + "_vtable = type { " +
+      cl.methods.map(methodSignature(cl, _)).mkString(", ") +
       "}\n"
 
     // global vtable
     s = s +
-      "@" + className.toLowerCase() + "_vtable = global %struct." +
-      className.toUpperCase() + "_VTABLE { " +
-      cl.methods.foldLeft("")((acc, m) => acc + methodSignatureWithName(cl, m)) +
+      "@" + className + "_vtable = global %struct." +
+      className + "_vtable { " +
+      cl.methods.map(methodSignatureWithName(cl, _)).mkString(", ") +
       "}, align 8\n\n"
 
     return s
@@ -161,7 +163,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
   def typeOf(t: TypeTree): String = t match {
     case IntType() => "i32"
-    case Identifier(id) => "%struct." + id.toUpperCase() + "*"
+    case Identifier(id) => "%struct." + id + "*"
     case _ => "Not yet implemented"
   }
 
@@ -173,7 +175,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
   def generateMainMethod(prog: Program): String = {
     "define i32 @main() nounwind ssp {\n    " +
-      prog.main.stats.flatMap(compileStat).mkString("\n    ")+
+      prog.main.stats.flatMap(compileStat).mkString("\n    ") +
       "\n    ret i32 0\n" +
       "}\n\n"
   }
