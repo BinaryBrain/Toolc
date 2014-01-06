@@ -33,7 +33,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     Some(new PrintWriter(prog.main.id.value + ".ll")).foreach { p => p.write(code); p.close }
   }
 
-  def compileStat(stat: StatTree): List[String] = {
+  def compileStat(stat: StatTree): List[Instruction] = {
     stat match {
 
       case Block(stats: List[StatTree]) =>
@@ -45,7 +45,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         val ifTrueLabel = freshReg
         val thnPart = compileStat(thn)
         var ifFalseLabel = freshReg
-        var elsPart = List[String]()
+        var elsPart = List[Instruction]()
         var ifEndLabel = ifFalseLabel
 
         if (els.isDefined) {
@@ -53,22 +53,22 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
           ifEndLabel = freshReg
 
           cond :::
-            List(branch(condReg, ifTrueLabel, ifFalseLabel).asAssembly) :::
-            List(label(ifTrueLabel).asAssembly) :::
+            List(branch(condReg, ifTrueLabel, ifFalseLabel)) :::
+            List(label(ifTrueLabel)) :::
             thnPart :::
-            List(jump(ifEndLabel).asAssembly) :::
-            List(label(ifFalseLabel).asAssembly) :::
+            List(jump(ifEndLabel)) :::
+            List(label(ifFalseLabel)) :::
             elsPart :::
-            List(jump(ifEndLabel).asAssembly) :::
-            List(label(ifEndLabel).asAssembly)
+            List(jump(ifEndLabel)) :::
+            List(label(ifEndLabel))
 
         } else {
           cond :::
-            List(branch(condReg, ifTrueLabel, ifFalseLabel).asAssembly) :::
-            List(label(ifTrueLabel).asAssembly) :::
+            List(branch(condReg, ifTrueLabel, ifFalseLabel)) :::
+            List(label(ifTrueLabel)) :::
             thnPart :::
-            List(jump(ifEndLabel).asAssembly) :::
-            List(label(ifEndLabel).asAssembly)
+            List(jump(ifEndLabel)) :::
+            List(label(ifEndLabel))
         }
 
       case While(expr: ExprTree, stat: StatTree) => Nil
@@ -78,31 +78,31 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
         if (expr.getType == TBoolean) {
           s = s :::
-            List(zext(freshReg, oldReg, "i1", "i32").asAssembly)
+            List(zext(freshReg, oldReg, "i1", "i32"))
         }
         if (expr.getType == TInt || expr.getType == TBoolean) {
           s = s :::
             List(call(freshReg, "i32 (i8*, ...)*", "@printf", "i8* getelementptr" +
               " inbounds ([4 x i8]* @.str1, i32 0, i32 0), i32 " +
-              oldReg).asAssembly)
+              oldReg))
         } else {
           s = s :::
             List(call(freshReg, "i32 (i8*, ...)*", "@printf", "i8* getelementptr" +
               " inbounds ([4 x i8]* @.str, i32 0, i32 0), i32 " +
-              oldReg).asAssembly)
+              oldReg))
         }
 
         return s
 
       case Assign(id: Identifier, expr: ExprTree) =>
         compileExpr(expr) :::
-          List(store(lastReg, "%" + id.value, typeOf(expr.getType)).asAssembly)
+          List(store(lastReg, "%" + id.value, typeOf(expr.getType)))
 
       case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) => Nil
     }
   }
 
-  def compileExpr(expr: ExprTree): List[String] = expr match {
+  def compileExpr(expr: ExprTree): List[Instruction] = expr match {
     case And(lhs: ExprTree, rhs: ExprTree) => Nil
     case Or(lhs: ExprTree, rhs: ExprTree) => Nil
 
@@ -110,31 +110,31 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       val l = compileExpr(lhs)
       val savedReg = lastReg
       val r = compileExpr(rhs)
-      l ::: r ::: List(add(freshReg, savedReg, oldReg).asAssembly)
+      l ::: r ::: List(add(freshReg, savedReg, oldReg))
 
     case Minus(lhs: ExprTree, rhs: ExprTree) =>
       val l = compileExpr(lhs)
       val savedReg = lastReg
       val r = compileExpr(rhs)
-      l ::: r ::: List(sub(freshReg, savedReg, oldReg).asAssembly)
+      l ::: r ::: List(sub(freshReg, savedReg, oldReg))
 
     case Times(lhs: ExprTree, rhs: ExprTree) =>
       val l = compileExpr(lhs)
       val savedReg = lastReg
       val r = compileExpr(rhs)
-      l ::: r ::: List(mul(freshReg, savedReg, oldReg).asAssembly)
+      l ::: r ::: List(mul(freshReg, savedReg, oldReg))
 
     case Div(lhs: ExprTree, rhs: ExprTree) =>
       val l = compileExpr(lhs)
       val savedReg = lastReg
       val r = compileExpr(rhs)
-      l ::: r ::: List(sdiv(freshReg, savedReg, oldReg).asAssembly)
+      l ::: r ::: List(sdiv(freshReg, savedReg, oldReg))
 
     case LessThan(lhs: ExprTree, rhs: ExprTree) =>
       val l = compileExpr(lhs)
       val savedReg = lastReg
       val r = compileExpr(rhs)
-      l ::: r ::: List(lessThan(freshReg, savedReg, oldReg).asAssembly)
+      l ::: r ::: List(lessThan(freshReg, savedReg, oldReg))
 
     case Equals(lhs: ExprTree, rhs: ExprTree) => Nil
     case ArrayRead(arr: ExprTree, index: ExprTree) => Nil
@@ -144,7 +144,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       val structName = "%struct." + obj.getType
       val objCompiled = compileExpr(obj)
       val objReg = lastReg
-      var argsCompiled = List[String]()
+      var argsCompiled = List[Instruction]()
       var savedArgsReg = List[String]()
       var argsType = List[String]()
 
@@ -164,56 +164,56 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
       if (!args.isEmpty) {
         objCompiled ::: argsCompiled :::
-          List(getelementptr(freshReg, structName + "*", objReg).asAssembly) :::
-          List(load(freshReg, oldReg, structName + "_vtable*").asAssembly) :::
-          List(getelementptr(freshReg, structName + "_vtable*", oldReg).asAssembly) :::
-          List(load(freshReg, oldReg, methType + "*").asAssembly) :::
+          List(getelementptr(freshReg, structName + "*", objReg)) :::
+          List(load(freshReg, oldReg, structName + "_vtable*")) :::
+          List(getelementptr(freshReg, structName + "_vtable*", oldReg)) :::
+          List(load(freshReg, oldReg, methType + "*")) :::
          List(call(freshReg, "i32", oldReg, structName + "* " + objReg + ", " +
-            argsType.zip(savedArgsReg).map(a => a._1 + " " + a._2).mkString(", ")).asAssembly)
+            argsType.zip(savedArgsReg).map(a => a._1 + " " + a._2).mkString(", ")))
       } else {
         objCompiled :::
-          List(getelementptr(freshReg, structName + "*", objReg).asAssembly) :::
-          List(load(freshReg, oldReg, structName + "_vtable*").asAssembly) :::
-          List(getelementptr(freshReg, structName + "_vtable*", oldReg).asAssembly) :::
-          List(load(freshReg, oldReg, methType + "*").asAssembly) :::
-          List(call(freshReg, "i32", oldReg, structName + "* " + objReg).asAssembly)
+          List(getelementptr(freshReg, structName + "*", objReg)) :::
+          List(load(freshReg, oldReg, structName + "_vtable*")) :::
+          List(getelementptr(freshReg, structName + "_vtable*", oldReg)) :::
+          List(load(freshReg, oldReg, methType + "*")) :::
+          List(call(freshReg, "i32", oldReg, structName + "* " + objReg))
       }
 
     case IntLit(value: Int) =>
-      alloca(freshReg, "i32").asAssembly ::
-        store(value.toString, lastReg, "i32").asAssembly ::
-        List(load(freshReg, oldReg, "i32").asAssembly)
+      alloca(freshReg, "i32") ::
+        store(value.toString, lastReg, "i32") ::
+        List(load(freshReg, oldReg, "i32"))
 
     case StringLit(value: String) =>
       addStrConstant(value)
-      alloca(freshReg, "i8*").asAssembly ::
+      alloca(freshReg, "i8*") ::
         store("getelementptr inbounds ([" + (value.length() + 1) + " x i8]* " +
-          "@.str" + (strConstants.size - 1) + ", i32 0, i32 0)", lastReg, "i8*").asAssembly ::
-        List(load(freshReg, oldReg, "i8*").asAssembly)
+          "@.str" + (strConstants.size - 1) + ", i32 0, i32 0)", lastReg, "i8*") ::
+        List(load(freshReg, oldReg, "i8*"))
 
     case True() =>
-      alloca(freshReg, "i1").asAssembly ::
-        store("true", lastReg, "i1").asAssembly ::
-        List(load(freshReg, oldReg, "i1").asAssembly)
+      alloca(freshReg, "i1") ::
+        store("true", lastReg, "i1") ::
+        List(load(freshReg, oldReg, "i1"))
 
     case False() =>
-      alloca(freshReg, "i1").asAssembly ::
-        store("false", lastReg, "i1").asAssembly ::
-        List(load(freshReg, oldReg, "i1").asAssembly)
+      alloca(freshReg, "i1") ::
+        store("false", lastReg, "i1") ::
+        List(load(freshReg, oldReg, "i1"))
 
     case id: Identifier =>
       val tpe = typeOf(id.getType)
       val tpeDeref = tpe.subSequence(0, tpe.length()-1)
-      List(load(freshReg, "%" + id.value, typeOf(id.getType)).asAssembly)
+      List(load(freshReg, "%" + id.value, typeOf(id.getType)))
 
     case t: This =>
-      alloca(freshReg, "%struct." + t.getType + "*").asAssembly ::
-        store("%this", lastReg, "%struct." + t.getType + "*").asAssembly ::
-        List(load(freshReg, oldReg, "%struct." + t.getType + "*").asAssembly)
+      alloca(freshReg, "%struct." + t.getType + "*") ::
+        store("%this", lastReg, "%struct." + t.getType + "*") ::
+        List(load(freshReg, oldReg, "%struct." + t.getType + "*"))
 
     case NewIntArray(size: ExprTree) => Nil
     case New(tpe: Identifier) =>
-      List(call(freshReg, "%struct." + tpe.value + "*", "@new_" + tpe.value, "").asAssembly)
+      List(call(freshReg, "%struct." + tpe.value + "*", "@new_" + tpe.value, ""))
     case Not(expr: ExprTree) => Nil
   }
 
@@ -254,15 +254,15 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     lastRegUsed = 0
     val className = cl.id.value
     "define %struct." + className + "* @new_" + className + "() nounwind ssp {\n    " +
-      (alloca("%obj", "%struct." + className + "*").asAssembly ::
-        call(freshReg, "i8*", "@malloc", "i64 8").asAssembly ::  // TODO Change arg
-        bitcast(freshReg, "i8*", oldReg, "%struct." + className + "*").asAssembly ::
-        store(lastReg, "%obj", "%struct." + className + "*").asAssembly ::
-        load(freshReg, "%obj", "%struct." + className + "*").asAssembly ::
-        getelementptr(freshReg, "%struct." + className + "*", oldReg).asAssembly ::
-        store("@" + className + "_vtable", lastReg, "%struct." + className + "_vtable*").asAssembly ::
-        load(freshReg, "%obj", "%struct." + className + "*").asAssembly ::
-        List(ret("%struct." + className + "*", lastReg).asAssembly)).mkString("\n    ") +
+      (alloca("%obj", "%struct." + className + "*") ::
+        call(freshReg, "i8*", "@malloc", "i64 8") ::  // TODO Change arg
+        bitcast(freshReg, "i8*", oldReg, "%struct." + className + "*") ::
+        store(lastReg, "%obj", "%struct." + className + "*") ::
+        load(freshReg, "%obj", "%struct." + className + "*") ::
+        getelementptr(freshReg, "%struct." + className + "*", oldReg) ::
+        store("@" + className + "_vtable", lastReg, "%struct." + className + "_vtable*") ::
+        load(freshReg, "%obj", "%struct." + className + "*") ::
+        List(ret("%struct." + className + "*", lastReg))).map(_.asAssembly).mkString("\n    ") +
         "\n}"
   }
 
@@ -306,8 +306,8 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       "define " + typeOf(m.retType) + " @" + m.id.value + "(" + typeOf(cl.id) +
         " %this" + ") nounwind ssp {\n    " +
         m.vars.map(generateVarDecl).mkString("\n    ") + "\n    " +
-        m.stats.flatMap(compileStat).mkString("\n    ") +
-        "\n    " + compileExpr(m.retExpr).mkString("\n") +
+        m.stats.flatMap(compileStat).map(_.asAssembly).mkString("\n    ") +
+        "\n    " + compileExpr(m.retExpr).map(_.asAssembly).mkString("\n") +
         "\n    ret " + typeOf(m.retType) + " " + lastReg +
         "\n}"
     } else {
@@ -316,8 +316,8 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
           arg.id.value).mkString(", ") + ") nounwind ssp {\n    " +
         m.args.map(generateArg).mkString("\n    ") + "\n    " +
         m.vars.map(generateVarDecl).mkString("\n    ") + "\n    " +
-        m.stats.flatMap(compileStat).mkString("\n    ") +
-        "\n    " + compileExpr(m.retExpr).mkString("\n") +
+        m.stats.flatMap(compileStat).map(_.asAssembly).mkString("\n    ") +
+        "\n    " + compileExpr(m.retExpr).map(_.asAssembly).mkString("\n") +
         "\n    ret " + typeOf(m.retType) + " " + lastReg +
         "\n}"
     }
@@ -335,7 +335,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
   def generateMainMethod(prog: Program): String = {
     lastRegUsed = 0
     "define i32 @main() nounwind ssp {\n    " +
-      prog.main.stats.flatMap(compileStat).mkString("\n    ") +
+      prog.main.stats.flatMap(compileStat).map(_.asAssembly).mkString("\n    ") +
       "\n    ret i32 0\n" +
       "}\n\n"
   }
