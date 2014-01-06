@@ -9,189 +9,187 @@ import java.io.PrintWriter
 
 object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
-  var lastRegUsed = 0;
+  var lastRegUsed: Int = 0;
   var strConstants: List[String] = List("@.str = private unnamed_addr constant [4 x i8] c\"%s\\0A\\00\"",
-      "@.str1 = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\"");
+    "@.str1 = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\"");
 
   def run(ctx: Context)(prog: Program): Unit = {
     import ctx.reporter._;
 
-    // generate assembly
+    // generate LLVM assembly
     val headers = generateHeaders(ctx.file.getName());
     val classes = prog.classes.map(generateClass(_))
     val main = generateMainMethod(prog);
     val declarations = generateDeclarations()
-    
-    // output file
+
     val code = headers + strConstants.mkString("\n") + "\n\n" + classes.mkString("\n") +
-    	main + declarations
+      main + declarations
+
+    // Print for debug purpose
     println(code)
-    Some(new PrintWriter(prog.main.id.value + ".ll")).foreach{p => p.write(code); p.close}
+
+    // output to file
+    Some(new PrintWriter(prog.main.id.value + ".ll")).foreach { p => p.write(code); p.close }
   }
 
-  def compileStat(stat: StatTree): String = {
+  def compileStat(stat: StatTree): List[String] = {
     stat match {
 
       case Block(stats: List[StatTree]) =>
-        stats.foldLeft("")((acc, stat) => acc + compileStat(stat))
+        stats.flatMap(compileStat)
 
-      case If(expr: ExprTree, thn: StatTree, els: Option[StatTree]) => "Not Impl"
-      case While(expr: ExprTree, stat: StatTree) => "Not Impl"
-        
+      case If(expr: ExprTree, thn: StatTree, els: Option[StatTree]) => Nil
+      case While(expr: ExprTree, stat: StatTree) => Nil
+
       case Println(expr: ExprTree) =>
         var s = compileExpr(expr)
-        if(expr.getType == TInt || expr.getType == TBoolean) {
-          s = s +
-          "    " + freshReg + " = call i32 (i8*, ...)* @printf(i8* getelementptr" +
-          " inbounds ([4 x i8]* @.str1, i32 0, i32 0), i32 " +
-          oldReg + ")\n"
+        if (expr.getType == TInt || expr.getType == TBoolean) {
+          s = s :::
+            List(freshReg + " = call i32 (i8*, ...)* @printf(i8* getelementptr" +
+            " inbounds ([4 x i8]* @.str1, i32 0, i32 0), i32 " +
+            oldReg + ")")
         } else {
-        s = s +
-          "    " + freshReg + " = call i32 (i8*, ...)* @printf(i8* getelementptr" +
-          " inbounds ([4 x i8]* @.str, i32 0, i32 0), i8* " +
-          oldReg + ")\n"
+          s = s :::
+            List(freshReg + " = call i32 (i8*, ...)* @printf(i8* getelementptr" +
+            " inbounds ([4 x i8]* @.str, i32 0, i32 0), i8* " +
+            oldReg + ")")
         }
-        
+
         return s
 
-      case Assign(id: Identifier, expr: ExprTree) => "Not Impl"
-      case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) => "Not Impl"
+      case Assign(id: Identifier, expr: ExprTree) => Nil
+      case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) => Nil
     }
   }
 
-  def compileExpr(expr: ExprTree): String = expr match {
-    case And(lhs: ExprTree, rhs: ExprTree) => ""
-    case Or(lhs: ExprTree, rhs: ExprTree) => ""
-      
+  def compileExpr(expr: ExprTree): List[String] = expr match {
+    case And(lhs: ExprTree, rhs: ExprTree) => Nil
+    case Or(lhs: ExprTree, rhs: ExprTree) => Nil
+
     case Plus(lhs: ExprTree, rhs: ExprTree) => // Handle string concatenation (with int too)
       val l = compileExpr(lhs)
       val savedReg = lastReg
       val r = compileExpr(rhs)
-      l + r + "    " + freshReg + " = add nsw i32 " + savedReg + ", " + oldReg + "\n"
-      
+      l ::: r ::: List(freshReg + " = add nsw i32 " + savedReg + ", " + oldReg)
+
     case Minus(lhs: ExprTree, rhs: ExprTree) =>
       val l = compileExpr(lhs)
       val savedReg = lastReg
       val r = compileExpr(rhs)
-      l + r + "    " + freshReg + " = sub nsw i32 " + savedReg + ", " + oldReg + "\n"
-      
+      l ::: r ::: List(freshReg + " = sub nsw i32 " + savedReg + ", " + oldReg)
+
     case Times(lhs: ExprTree, rhs: ExprTree) =>
       val l = compileExpr(lhs)
       val savedReg = lastReg
       val r = compileExpr(rhs)
-      l + r + "    " + freshReg + " = mul nsw i32 " + savedReg + ", " + oldReg + "\n"
-      
+      l ::: r ::: List(freshReg + " = mul nsw i32 " + savedReg + ", " + oldReg)
+
     case Div(lhs: ExprTree, rhs: ExprTree) =>
       val l = compileExpr(lhs)
       val savedReg = lastReg
       val r = compileExpr(rhs)
-      l + r + "    " + freshReg + " = sdiv i32 " + savedReg + ", " + oldReg + "\n"
-      
-    case LessThan(lhs: ExprTree, rhs: ExprTree) => ""
-    case Equals(lhs: ExprTree, rhs: ExprTree) => ""
-    case ArrayRead(arr: ExprTree, index: ExprTree) => ""
-    case ArrayLength(arr: ExprTree) => ""
-    case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) => ""
-    
+      l ::: r ::: List(freshReg + " = sdiv i32 " + savedReg + ", " + oldReg)
+
+    case LessThan(lhs: ExprTree, rhs: ExprTree) => Nil
+    case Equals(lhs: ExprTree, rhs: ExprTree) => Nil
+    case ArrayRead(arr: ExprTree, index: ExprTree) => Nil
+    case ArrayLength(arr: ExprTree) => Nil
+    case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) => Nil
+
     case IntLit(value: Int) =>
-      "    " + freshReg + " = alloca i32, align 4\n" +
-      "    " + "store i32 " + value + ", i32* " + lastReg + ", align 4\n" +
-      "    " + freshReg + " = load i32* " + oldReg + ", align 4\n"
+        freshReg + " = alloca i32, align 4" ::
+        "store i32 " + value + ", i32* " + lastReg + ", align 4" ::
+        List(freshReg + " = load i32* " + oldReg + ", align 4")
 
     case StringLit(value: String) =>
       addStrConstant(value)
-      "    " + freshReg + " = alloca i8*, align 8\n" +
-        "    " + "store i8* getelementptr inbounds ([" + (value.length() + 1) + " x i8]* " +
-        "@.str" + (strConstants.size - 1) + ", i32 0, i32 0), i8** " + lastReg + ", align 8\n" +
-        "    " + freshReg + " = load i8** " + oldReg + ", align 8\n"
+      freshReg + " = alloca i8*, align 8" ::
+        "store i8* getelementptr inbounds ([" + (value.length() + 1) + " x i8]* " +
+        "@.str" + (strConstants.size - 1) + ", i32 0, i32 0), i8** " + lastReg + ", align 8" ::
+        List(freshReg + " = load i8** " + oldReg + ", align 8")
 
     case True() =>
-      "    " + freshReg + " = alloca i32, align 4\n" +
-      "    " + "store i32 " + 1 + ", i32* " + lastReg + ", align 4\n" +
-      "    " + freshReg + " = load i32* " + oldReg + ", align 4\n"
-      
+      freshReg + " = alloca i32, align 4" ::
+        "store i32 " + 1 + ", i32* " + lastReg + ", align 4" ::
+        List(freshReg + " = load i32* " + oldReg + ", align 4")
+
     case False() =>
-      "    " + freshReg + " = alloca i32, align 4\n" +
-      "    " + "store i32 " + 0 + ", i32* " + lastReg + ", align 4\n" +
-      "    " + freshReg + " = load i32* " + oldReg + ", align 4\n"
-      
-    case Identifier(value: String) => ""
-    case This() => ""
-    case NewIntArray(size: ExprTree) => ""
-    case New(tpe: Identifier) => ""
-    case Not(expr: ExprTree) => ""
+      freshReg + " = alloca i32, align 4" ::
+        "store i32 " + 0 + ", i32* " + lastReg + ", align 4" :: 
+        List(freshReg + " = load i32* " + oldReg + ", align 4")
+
+    case Identifier(value: String) => Nil
+    case This() => Nil
+    case NewIntArray(size: ExprTree) => Nil
+    case New(tpe: Identifier) => Nil
+    case Not(expr: ExprTree) => Nil
   }
-  
-  
-  
+
   def generateClass(cl: ClassDecl): String = {
     var s: String = ""
     val className = cl.id.value
-    
+
     // struct for the class with fields and a vtable
     s = s +
-    	"%struct." + className.toUpperCase() + " = type { %struct." +
-    	className.toUpperCase() + "_VTABLE* }\n" // TODO add fields
-    	
+      "%struct." + className.toUpperCase() + " = type { %struct." +
+      className.toUpperCase() + "_VTABLE* }\n" // TODO add fields
+
     // struct for the vtable
     s = s +
-    	"%struct." + className.toUpperCase() + "_VTABLE = type { " +
-    	cl.methods.foldLeft("")((acc, m) => acc + methodSignature(cl, m)) +
-    	"}\n"
-    	
-   // global vtable
-   s = s +
-   	   "@" + className.toLowerCase() + "_vtable = global %struct." +
-   	   className.toUpperCase() + "_VTABLE { " +	
-   	   cl.methods.foldLeft("")((acc, m) => acc + methodSignatureWithName(cl, m)) +
-   	   "}, align 8\n\n"
-    	
+      "%struct." + className.toUpperCase() + "_VTABLE = type { " +
+      cl.methods.foldLeft("")((acc, m) => acc + methodSignature(cl, m)) +
+      "}\n"
+
+    // global vtable
+    s = s +
+      "@" + className.toLowerCase() + "_vtable = global %struct." +
+      className.toUpperCase() + "_VTABLE { " +
+      cl.methods.foldLeft("")((acc, m) => acc + methodSignatureWithName(cl, m)) +
+      "}, align 8\n\n"
+
     return s
   }
-  
-  
+
   def methodSignature(cl: ClassDecl, m: MethodDecl): String = {
-    typeOf(m.retType) + " (" +typeOf(cl.id) + ", " + m.args.map(typeOf(_)).mkString(", ") + ")* "
+    typeOf(m.retType) + " (" + typeOf(cl.id) + ", " + m.args.map(typeOf(_)).mkString(", ") + ")* "
   }
-  
+
   def methodSignatureWithName(cl: ClassDecl, m: MethodDecl): String = {
-    typeOf(m.retType) + " (" +typeOf(cl.id) + ", " + m.args.map(typeOf(_)).mkString(", ") + ")* " +
-    		"@" + m.id.value + " "
+    typeOf(m.retType) + " (" + typeOf(cl.id) + ", " + m.args.map(typeOf(_)).mkString(", ") + ")* " +
+      "@" + m.id.value + " "
   }
-  
+
   def typeOf(t: TypeTree): String = t match {
     case IntType() => "i32"
     case Identifier(id) => "%struct." + id.toUpperCase() + "*"
-    case _  => "Not yet implemented"
+    case _ => "Not yet implemented"
   }
-  
+
   def typeOf(f: Formal): String = typeOf(f.tpe)
-  
+
   def generateMethod(cl: ClassDecl, m: MethodDecl): String = {
     return ""
   }
 
   def generateMainMethod(prog: Program): String = {
-    "define i32 @main() nounwind ssp {\n" +
-    prog.main.stats.foldLeft("")((acc, stat) => acc + compileStat(stat)) +
-    "    ret i32 0\n" +
-    "}\n\n"
+    "define i32 @main() nounwind ssp {\n    " +
+      prog.main.stats.flatMap(compileStat).mkString("\n    ")+
+      "\n    ret i32 0\n" +
+      "}\n\n"
   }
 
   def generateHeaders(sourceName: String): String = {
-    var headers: String = ""
-    headers = "; ModuleID = '" + sourceName + "'\n" +
+    "; ModuleID = '" + sourceName + "'\n" +
       "target datalayout = " +
       "\"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:" +
       "64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0" +
       ":64-s0:64:64-f80:128:128-n8:16:32:64\"\n" +
       "target triple = \"x86_64-apple-macosx10.7.4\"\n\n" //TODO Change OS
-    return headers
   }
-  
+
   def generateDeclarations(): String = {
     "declare i32 @printf(i8*, ...)\n" +
-    "declare i8* @malloc(i64)\n"
+      "declare i8* @malloc(i64)\n"
   }
 
   def addStrConstant(str: String): Unit = {
