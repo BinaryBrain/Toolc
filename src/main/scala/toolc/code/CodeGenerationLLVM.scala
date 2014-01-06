@@ -38,11 +38,48 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       case Block(stats: List[StatTree]) =>
         stats.flatMap(compileStat)
 
-      case If(expr: ExprTree, thn: StatTree, els: Option[StatTree]) => Nil
+      case If(expr: ExprTree, thn: StatTree, els: Option[StatTree]) =>
+        val cond = compileExpr(expr)
+        val condReg = lastReg
+        val ifTrueLabel = freshReg
+        val thnPart = compileStat(thn)
+        var ifFalseLabel = freshReg
+        var elsPart = List[String]()
+        var ifEndLabel = ifFalseLabel
+
+        if (els.isDefined) {
+          elsPart = compileStat(els.get)
+          ifEndLabel = freshReg
+
+          cond :::
+            List("br i1 " + condReg + ", label " + ifTrueLabel + ", label " + ifFalseLabel) :::
+            List("\n; <label>: " + ifTrueLabel) :::
+            thnPart :::
+            List("br label " + ifEndLabel) :::
+            List("\n; <label>: " + ifFalseLabel) :::
+            elsPart :::
+            List("br label " + ifEndLabel) :::
+            List("\n; <label>: " + ifEndLabel)
+
+        } else {
+          cond :::
+            List("br i1 " + condReg + ", label " + ifTrueLabel + ", label " + ifFalseLabel) :::
+            List("\n; <label>: " + ifTrueLabel) :::
+            thnPart :::
+            List("br label " + ifEndLabel) :::
+            elsPart :::
+            List("\n; <label>: " + ifEndLabel)
+        }
+
       case While(expr: ExprTree, stat: StatTree) => Nil
 
       case Println(expr: ExprTree) =>
         var s = compileExpr(expr)
+
+        if (expr.getType == TBoolean) {
+          s = s :::
+            List(freshReg + " = zext i1 " + oldReg + " to i32")
+        }
         if (expr.getType == TInt || expr.getType == TBoolean) {
           s = s :::
             List(freshReg + " = call i32 (i8*, ...)* @printf(i8* getelementptr" +
@@ -57,7 +94,11 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
         return s
 
-      case Assign(id: Identifier, expr: ExprTree) => Nil
+      case Assign(id: Identifier, expr: ExprTree) =>
+        compileExpr(expr) :::
+          List("store " + typeOf(expr.getType) + " " + lastReg +
+            ", " + typeOf(expr.getType) + "* %" + id.value + ", align 4")
+
       case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) => Nil
     }
   }
@@ -90,11 +131,56 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       val r = compileExpr(rhs)
       l ::: r ::: List(freshReg + " = sdiv i32 " + savedReg + ", " + oldReg)
 
-    case LessThan(lhs: ExprTree, rhs: ExprTree) => Nil
+    case LessThan(lhs: ExprTree, rhs: ExprTree) =>
+      val l = compileExpr(lhs)
+      val savedReg = lastReg
+      val r = compileExpr(rhs)
+      l ::: r :::
+        List(freshReg + " = icmp slt i32 " + savedReg + ", " + oldReg)
+
     case Equals(lhs: ExprTree, rhs: ExprTree) => Nil
     case ArrayRead(arr: ExprTree, index: ExprTree) => Nil
     case ArrayLength(arr: ExprTree) => Nil
-    case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) => Nil
+
+    case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) =>
+      val structName = "%struct." + obj.getType
+      val objCompiled = compileExpr(obj)
+      val objReg = lastReg
+      var argsCompiled = List[String]()
+      var savedArgsReg = List[String]()
+      var argsType = List[String]()
+
+      args.foreach { a =>
+        argsCompiled = argsCompiled ::: compileExpr(a)
+        savedArgsReg = savedArgsReg ::: List(lastReg)
+        argsType = argsType ::: List(typeOf(a.getType))
+      }
+
+      var methType: String = ""
+      if (!args.isEmpty) {
+        methType = typeOf(meth.getType) + " (" + structName + "*, " +
+          args.map(a => typeOf(a.getType)).mkString(", ") + ")"
+      } else {
+        methType = typeOf(meth.getType) + " (" + structName + "*)"
+      }
+
+      if(!args.isEmpty) {
+      objCompiled ::: argsCompiled :::
+        List(freshReg + " = getelementptr inbounds " + structName + "* " + objReg + ", i32 0, i32 0") :::
+        List(freshReg + " = load " + structName + "_vtable** " + oldReg + ", align 8") :::
+        List(freshReg + " = getelementptr inbounds " + structName + "_vtable* " + oldReg + ", i32 0, i32 0") :::
+        List(freshReg + " = load " + methType + "** " + oldReg + ", align 8") :::
+        List(freshReg + " = call i32 " + oldReg + "("+structName+"* " + objReg + ", " +
+          argsType.zip(savedArgsReg).map(a => a._1 + " " + a._2).mkString(", ") +
+          ")")
+      } else {
+        objCompiled :::
+        List(freshReg + " = getelementptr inbounds " + structName + "* " + objReg + ", i32 0, i32 0") :::
+        List(freshReg + " = load " + structName + "_vtable** " + oldReg + ", align 8") :::
+        List(freshReg + " = getelementptr inbounds " + structName + "_vtable* " + oldReg + ", i32 0, i32 0") :::
+        List(freshReg + " = load " + methType + "** " + oldReg + ", align 8") :::
+        List(freshReg + " = call i32 " + oldReg + "("+structName+"* " + objReg + ")")
+      }
 
     case IntLit(value: Int) =>
       freshReg + " = alloca i32, align 4" ::
@@ -109,19 +195,26 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         List(freshReg + " = load i8** " + oldReg + ", align 8")
 
     case True() =>
-      freshReg + " = alloca i32, align 4" ::
-        "store i32 " + 1 + ", i32* " + lastReg + ", align 4" ::
-        List(freshReg + " = load i32* " + oldReg + ", align 4")
+      freshReg + " = alloca i1, align 4" ::
+        "store i1 true, i1* " + lastReg + ", align 4" ::
+        List(freshReg + " = load i1* " + oldReg + ", align 4")
 
     case False() =>
-      freshReg + " = alloca i32, align 4" ::
-        "store i32 " + 0 + ", i32* " + lastReg + ", align 4" ::
-        List(freshReg + " = load i32* " + oldReg + ", align 4")
+      freshReg + " = alloca i1, align 4" ::
+        "store i1 false, i1* " + lastReg + ", align 4" ::
+        List(freshReg + " = load i1* " + oldReg + ", align 4")
 
-    case Identifier(value: String) => Nil
-    case This() => Nil
+    case id: Identifier =>
+      List(freshReg + " = load " + typeOf(id.getType) + "* %"+ id.value + ", align 4")
+
+    case t: This =>
+      List(freshReg + " = alloca %struct." + t.getType + "*, align 8") :::
+      List("store %struct." + t.getType + "* %this , %struct." + t.getType + "** " + lastReg +", align 4") :::
+      List(freshReg + " = load %struct." + t.getType + "** "+ oldReg + ", align 8")
+      
     case NewIntArray(size: ExprTree) => Nil
-    case New(tpe: Identifier) => Nil
+    case New(tpe: Identifier) =>
+      List(freshReg + " = call %struct." + tpe.value + "* @new_" + tpe.value + "()")
     case Not(expr: ExprTree) => Nil
   }
 
@@ -149,16 +242,47 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       cl.methods.map(methodSignatureWithName(cl, _)).mkString(", ") +
       "}, align 8\n\n"
 
-    return s
+    s = s +
+      generateNew(cl) + "\n\n"
+    // Methods generation
+    s = s +
+      cl.methods.map(generateMethod(cl, _)).mkString("\n\n")
+
+    s + "\n\n"
+  }
+
+  def generateNew(cl: ClassDecl): String = {
+    lastRegUsed = 0
+    val className = cl.id.value
+    "define %struct." + className + "* @new_" + className + "() nounwind ssp {\n    " +
+      (("%obj = alloca %struct." + className + "*, align 8") ::
+        (freshReg + " = call i8* @malloc(i64 8)") ::
+        (freshReg + " = bitcast i8* " + oldReg + " to %struct." + className + "*") ::
+        ("store %struct." + className + "* " + lastReg + ", %struct." + className + "** %obj, align 8") ::
+        (freshReg + " = load %struct." + className + "** %obj, align 8") ::
+        (freshReg + " = getelementptr inbounds %struct." + className + "* " + oldReg + ", i32 0, i32 0") ::
+        ("store %struct." + className + "_vtable* @" + className + "_vtable, %struct." + className + "_vtable** %4, align 8") ::
+        (freshReg + " = load %struct." + className + "** %obj, align 8") ::
+        List(("ret %struct." + className + "*" + lastReg))).mkString("\n    ") +
+        "\n}"
   }
 
   def methodSignature(cl: ClassDecl, m: MethodDecl): String = {
-    typeOf(m.retType) + " (" + typeOf(cl.id) + ", " + m.args.map(typeOf(_)).mkString(", ") + ")* "
+    if (m.args.isEmpty) {
+      typeOf(m.retType) + " (" + typeOf(cl.id) + ")* "
+    } else {
+      typeOf(m.retType) + " (" + typeOf(cl.id) + ", " + m.args.map(typeOf(_)).mkString(", ") + ")* "
+    }
   }
 
   def methodSignatureWithName(cl: ClassDecl, m: MethodDecl): String = {
-    typeOf(m.retType) + " (" + typeOf(cl.id) + ", " + m.args.map(typeOf(_)).mkString(", ") + ")* " +
-      "@" + m.id.value + " "
+    if (m.args.isEmpty) {
+      typeOf(m.retType) + " (" + typeOf(cl.id) + ")* " +
+        "@" + m.id.value + " "
+    } else {
+      typeOf(m.retType) + " (" + typeOf(cl.id) + ", " + m.args.map(typeOf(_)).mkString(", ") + ")* " +
+        "@" + m.id.value + " "
+    }
   }
 
   def typeOf(t: TypeTree): String = t match {
@@ -169,11 +293,48 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
   def typeOf(f: Formal): String = typeOf(f.tpe)
 
+  def typeOf(t: Type): String = t match {
+    case TInt => "i32"
+    case TObject(id) => "%struct." + id + "*"
+    case TBoolean => "i1"
+    case _ => "Not yet implemented"
+  }
+
   def generateMethod(cl: ClassDecl, m: MethodDecl): String = {
-    return ""
+    lastRegUsed = 0
+
+    if (m.args.isEmpty) {
+      "define " + typeOf(m.retType) + " @" + m.id.value + "(" + typeOf(cl.id) +
+        " %this" + ") nounwind ssp {\n    " +
+        m.vars.map(generateVarDecl).mkString("\n    ") + "\n    " +
+        m.stats.flatMap(compileStat).mkString("\n    ") +
+        "\n    " + compileExpr(m.retExpr).mkString("\n") +
+        "\n    ret " + typeOf(m.retType) + " " + lastReg +
+        "\n}"
+    } else {
+      "define " + typeOf(m.retType) + " @" + m.id.value + "(" + typeOf(cl.id) +
+        " %this, " + m.args.map(arg => typeOf(arg) + " %_" +
+          arg.id.value).mkString(", ") + ") nounwind ssp {\n    " +
+        m.args.map(generateArg).mkString("\n    ") + "\n    " +
+        m.vars.map(generateVarDecl).mkString("\n    ") + "\n    " +
+        m.stats.flatMap(compileStat).mkString("\n    ") +
+        "\n    " + compileExpr(m.retExpr).mkString("\n") +
+        "\n    ret " + typeOf(m.retType) + " " + lastReg +
+        "\n}"
+    }
+  }
+
+  def generateVarDecl(v: VarDecl): String = {
+    "%" + v.id.value + " = alloca " + typeOf(v.tpe) + ", align 4"
+  }
+  
+  def generateArg(a: Formal): String = {
+    "%" + a.id.value + " = alloca " + typeOf(a) + ", align 4\n" +
+    "    store " + typeOf(a) + " %_" + a.id.value + ", " + typeOf(a) + "* %" + a.id.value + ", align 4"
   }
 
   def generateMainMethod(prog: Program): String = {
+    lastRegUsed = 0
     "define i32 @main() nounwind ssp {\n    " +
       prog.main.stats.flatMap(compileStat).mkString("\n    ") +
       "\n    ret i32 0\n" +
@@ -199,6 +360,10 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     strConstants = strConstants :::
       List("@.str" + indexOfNewElement + " = private unnamed_addr constant " +
         "[" + (str.length() + 1) + " x i8] c\"" + str + "\\00\"")
+  }
+
+  def ancientReg: String = {
+    return "%" + (lastRegUsed - 2)
   }
 
   def oldReg: String = {
