@@ -18,7 +18,9 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
   var strConstants: List[String] =
     List("@.str = private unnamed_addr constant [4 x i8] c\"%s\\0A\\00\"",
       "@.str1 = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\"",
-      "@.str2 = private unnamed_addr constant [3 x i8] c\"%d\\00\"");
+      "@.str2 = private unnamed_addr constant [3 x i8] c\"%d\\00\"",
+      "@.str3 = private unnamed_addr constant [5 x i8] c\"true\\00\"",
+      "@.str4 = private unnamed_addr constant [6 x i8] c\"false\\00\"");
 
   def run(ctx: Context)(prog: Program): Unit = {
     import ctx.reporter._;
@@ -79,16 +81,36 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
             List(label(ifEndLabel))
         }
 
-      case While(expr: ExprTree, stat: StatTree) => Nil
+      case While(expr: ExprTree, stat: StatTree) =>
+        val beforeCond = freshReg
+        val cond = compileExpr(expr)
+        val condReg = lastReg
+        val trueLabel = freshReg
+        val body = compileStat(stat)
+        val falseLabel = freshReg
+        
+        
+        jump(beforeCond) ::
+        label(beforeCond) ::
+        cond :::
+        List(branch(condReg, trueLabel, falseLabel)) :::
+        List(label(trueLabel)) :::
+        body :::
+        List(jump(beforeCond)) :::
+        List(label(falseLabel))
+        
 
       case Println(expr: ExprTree) =>
         var s = compileExpr(expr)
 
         if (expr.getType == TBoolean) {
           s = s :::
-            List(zext(freshReg, oldReg, "i1", "i32"))
+            List(call(freshReg, "i8*", "@boolToString", "i1 " + oldReg)) :::
+            List(call(freshReg, "i32 (i8*, ...)*", "@printf", "i8* getelementptr" +
+              " inbounds ([4 x i8]* @.str, i32 0, i32 0), i8* " +
+              oldReg))
         }
-        if (expr.getType == TInt || expr.getType == TBoolean) {
+        else if (expr.getType == TInt) {
           s = s :::
             List(call(freshReg, "i32 (i8*, ...)*", "@printf", "i8* getelementptr" +
               " inbounds ([4 x i8]* @.str1, i32 0, i32 0), i32 " +
@@ -642,6 +664,27 @@ define i8* @$concatIntString(i32 %i, i8* %s) nounwind ssp {
   %6 = getelementptr inbounds [15 x i8]* %str, i32 0, i32 0
   %7 = load i8** %2, align 8
   %8 = call i8* @$concat(i8* %6, i8* %7)
+  ret i8* %8
+}
+
+define i8* @boolToString(i1 %b) nounwind ssp {
+  %1 = alloca i8*, align 8
+  %2 = alloca i1, align 4
+  store i1 %b, i1* %2, align 4
+  %3 = load i1* %2, align 4
+  %4 = icmp ne i1 %3, 0
+  br i1 %4, label %5, label %6
+
+; <label>:5                                       ; preds = %0
+  store i8* getelementptr inbounds ([5 x i8]* @.str3, i32 0, i32 0), i8** %1
+  br label %7
+
+; <label>:6                                       ; preds = %0
+  store i8* getelementptr inbounds ([6 x i8]* @.str4, i32 0, i32 0), i8** %1
+  br label %7
+
+; <label>:7                                       ; preds = %6, %5
+  %8 = load i8** %1
   ret i8* %8
 }"""
   }
