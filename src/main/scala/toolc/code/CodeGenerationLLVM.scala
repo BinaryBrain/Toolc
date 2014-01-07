@@ -20,17 +20,28 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
   def run(ctx: Context)(prog: Program): Unit = {
     import ctx.reporter._;
 
+    // Record classes structures for further references to find methods or fields index
+    prog.classes.foreach { cl =>
+      val c = new Class()
+      c.tpe = "%struct." + cl.id.value
+      c.fields = cl.vars.map(f => f.id.value)
+      c.methods = cl.methods.map(m => m.id.value)
+      structMap = structMap + (cl.id.value -> c)
+    }
+
     // generate LLVM assembly
     val headers = generateHeaders(ctx.file.getName());
+    val classHeaders = prog.classes.map(generateClassHeaders(_))
     val classes = prog.classes.map(generateClass(_))
     val main = generateMainMethod(prog);
     val declarations = generateDeclarations()
 
-    val code = headers + strConstants.mkString("\n") + "\n\n" + classes.mkString("\n") +
+    val code = headers + strConstants.mkString("\n") + "\n\n" + classHeaders.mkString("\n") + classes.mkString("\n") +
       main + declarations
 
     // Print for debug purpose
     println(code)
+    //println(structMap)
 
     // output to file
     Some(new PrintWriter(prog.main.id.value + ".ll")).foreach { p => p.write(code); p.close }
@@ -109,7 +120,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
           val exprCompiled = compileExpr(expr)
           val savedReg = lastReg
           exprCompiled :::
-          getelementptr(freshReg, currentClass.tpe + "*", "%this", 1 + currentClass.fields.indexOf(id.value)) ::
+            getelementptr(freshReg, currentClass.tpe + "*", "%this", 1 + currentClass.fields.indexOf(id.value)) ::
             List(store(savedReg, lastReg, typeOf(id.getType)))
 
         }
@@ -245,19 +256,11 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       List(call(freshReg, "%struct." + tpe.value + "*", "@new$" + tpe.value, ""))
     case Not(expr: ExprTree) => Nil
   }
-
-  def generateClass(cl: ClassDecl): String = {
+  
+  
+  def generateClassHeaders(cl: ClassDecl): String = {
     var s: String = ""
     val className = cl.id.value
-
-    // Generate classes for further references to find methods or fields index
-    val c = new Class()
-    c.tpe = "%struct." + className
-    c.fields = cl.vars.map(f => f.id.value)
-    c.methods = cl.methods.map(m => m.id.value)
-    structMap = structMap + (className -> c)
-
-    currentClass = c
 
     // struct for the class with fields and a vtable
     val fields = for (field <- cl.vars) yield (typeOf(field.tpe))
@@ -279,8 +282,14 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       "@" + className + "$vtable = global %struct." +
       className + "$vtable { " +
       cl.methods.map(methodSignatureWithName(cl, _)).mkString(", ") +
-      "}, align 8\n\n"
+      "}, align 8\n"
+      
+      s + "\n"
+  }
 
+  def generateClass(cl: ClassDecl): String = {
+    var s: String = ""
+    currentClass = structMap(cl.id.value)
     s = s +
       generateNew(cl) + "\n\n"
     // Methods generation

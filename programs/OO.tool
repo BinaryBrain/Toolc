@@ -1,10 +1,23 @@
 object OO {
 	def main ( ) : Unit = {
-		 println(new Animal().sayHello());
-		 println(new Animal().say("Bye!"));
-		 println(new Animal().init("Minou", 13).sayYourName());
-		 println(new Animal().init("Minet", 7).sayYourAge());
+		 println(new Person().init("John", new Animal().init("minou", 13)).sayHello());
 	} 
+}
+
+class Person {
+	var name: String;
+	var animal: Animal;
+	
+	def init(n: String, a: Animal): Person = {
+		name = n;
+		animal = a;
+		return this;
+	}
+	
+	def sayHello(): String = {
+		println(name);
+		return animal.sayYourName();
+	}
 }
 
 class Animal {
