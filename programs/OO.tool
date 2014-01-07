@@ -15,8 +15,7 @@ class Person {
 	}
 	
 	def sayHello(): String = {
-		println(name);
-		return animal.sayYourName();
+		return "Hi I'm " + name + " and my cat is " + animal.sayYourName() + " (he's " + animal.sayYourAge() + ")";
 	}
 }
 
