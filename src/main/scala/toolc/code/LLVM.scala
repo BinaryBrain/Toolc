@@ -4,8 +4,10 @@ object LLVM {
   
   
   class Class {
+    var size = 0
     var tpe: String = ""
     var methods: List[String] = List()
+    var argsType = List[List[String]]()
     var fields: List[String] = List()
     override def toString() = "Methods: " + methods + " Fields: " + fields
   }
@@ -78,6 +80,11 @@ object LLVM {
   case class lessThan(reg: String, l: String, r: String) extends Instruction {
     override def asAssembly() =
      reg + " = icmp slt i32 " + l + ", " + r
+  }
+  
+  case class equal(reg: String, l: String, r: String, tpe: String) extends Instruction {
+    override def asAssembly() =
+     reg + " = icmp eq  " + tpe + " " + l + ", " + r
   }
   
   case class getelementptr(reg: String, tpe: String, elem: String, index: Int) extends Instruction {

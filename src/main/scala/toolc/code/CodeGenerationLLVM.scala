@@ -14,26 +14,18 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
   var structMap: Map[String, Class] = Map()
   var currentClass: Class = null
   var currentLocals = List[String]()
-  var strConstants: List[String] = 
+
+  var strConstants: List[String] =
     List("@.str = private unnamed_addr constant [4 x i8] c\"%s\\0A\\00\"",
-         "@.str1 = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\"", 
-         "@.str2 = private unnamed_addr constant [3 x i8] c\"%d\\00\"");
+      "@.str1 = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\"",
+      "@.str2 = private unnamed_addr constant [3 x i8] c\"%d\\00\"");
 
   def run(ctx: Context)(prog: Program): Unit = {
     import ctx.reporter._;
 
-    // Record classes structures for further references to find methods or fields index
-    prog.classes.foreach { cl =>
-      val c = new Class()
-      c.tpe = "%struct." + cl.id.value
-      c.fields = cl.vars.map(f => f.id.value)
-      c.methods = cl.methods.map(m => m.id.value)
-      structMap = structMap + (cl.id.value -> c)
-    }
-
     // generate LLVM assembly
     val headers = generateHeaders(ctx.file.getName());
-    val classHeaders = prog.classes.map(generateClassHeaders(_))
+    val classHeaders = prog.classes.map(generateClassHeaders(prog, _))
     val classes = prog.classes.map(generateClass(_))
     val main = generateMainMethod(prog);
     val declarations = generateDeclarations()
@@ -43,7 +35,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
     // Print for debug purpose
     println(code)
-    //println(structMap)
+    println(structMap)
 
     // output to file
     Some(new PrintWriter(prog.main.id.value + ".ll")).foreach { p => p.write(code); p.close }
@@ -113,13 +105,21 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       case Assign(id: Identifier, expr: ExprTree) =>
 
         if (currentLocals.contains(id.value)) {
-          compileExpr(expr) :::
-            List(store(lastReg, "%" + id.value, typeOf(expr.getType)))
+          var exprCompiled = compileExpr(expr)
+          
+          if(typeOf(id.getType) != typeOf(expr.getType)) {
+            exprCompiled = exprCompiled ::: List(bitcast(freshReg, typeOf(expr.getType), oldReg, typeOf(id.getType)))
+          }
+            exprCompiled ::: List(store(lastReg, "%" + id.value, typeOf(id.getType)))
+            
         } else {
           if (!currentClass.fields.contains(id.value)) {
             sys.error("Unknown identifier for assign during code generation")
           }
-          val exprCompiled = compileExpr(expr)
+          var exprCompiled = compileExpr(expr)
+          if(typeOf(id.getType) != typeOf(expr.getType)) {
+            exprCompiled = exprCompiled ::: List(bitcast(freshReg, typeOf(expr.getType), oldReg, typeOf(id.getType)))
+          }
           val savedReg = lastReg
           exprCompiled :::
             getelementptr(freshReg, currentClass.tpe + "*", "%this", 1 + currentClass.fields.indexOf(id.value)) ::
@@ -139,12 +139,12 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       val l = compileExpr(lhs)
       val savedReg = lastReg
       val r = compileExpr(rhs)
-      
+
       if (lhs.getType == TInt && rhs.getType == TInt) {
         l ::: r ::: List(add(freshReg, savedReg, oldReg))
       } else if (lhs.getType == TInt && rhs.getType == TString) {
         l ::: r ::: List(call(freshReg, "i8*", "@$concatIntString", "i32 " + savedReg + ", i8* " + oldReg))
-      } else if(lhs.getType == TString && rhs.getType == TInt) {
+      } else if (lhs.getType == TString && rhs.getType == TInt) {
         l ::: r ::: List(call(freshReg, "i8*", "@$concatStringInt", "i8* " + savedReg + ", i32 " + oldReg))
       } else {
         l ::: r ::: List(call(freshReg, "i8*", "@$concat", "i8* " + savedReg + ", i8* " + oldReg))
@@ -174,7 +174,12 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       val r = compileExpr(rhs)
       l ::: r ::: List(lessThan(freshReg, savedReg, oldReg))
 
-    case Equals(lhs: ExprTree, rhs: ExprTree) => Nil
+    case Equals(lhs: ExprTree, rhs: ExprTree) =>
+      val l = compileExpr(lhs)
+      val savedReg = lastReg
+      val r = compileExpr(rhs)
+      l ::: r ::: List(equal(freshReg, savedReg, oldReg, typeOf(lhs.getType)))
+
     case ArrayRead(arr: ExprTree, index: ExprTree) => Nil
     case ArrayLength(arr: ExprTree) => Nil
 
@@ -185,22 +190,28 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       var argsCompiled = List[Instruction]()
       var savedArgsReg = List[String]()
       var argsType = List[String]()
+      var realArgsType = List[String]()
 
-      args.foreach { a =>
+      val methIndex = structMap(obj.getType.toString()).methods.indexOf(meth.value)
+      val className = obj.getType match { case t: TObject => t.classSymbol.name case _ => sys.error("TODO ERROR") } //TODO
+      argsType = structMap(className).argsType(methIndex)
+
+      argsType.zip(args).foreach { case (t, a) =>
         argsCompiled = argsCompiled ::: compileExpr(a)
+        
+        if(typeOf(a.getType) != t) {
+          argsCompiled = argsCompiled ::: List(bitcast(freshReg, typeOf(a.getType), oldReg, t))
+        }
         savedArgsReg = savedArgsReg ::: List(lastReg)
-        argsType = argsType ::: List(typeOf(a.getType))
       }
 
       var methType: String = ""
       if (!args.isEmpty) {
         methType = typeOf(meth.getType) + " (" + structName + "*, " +
-          args.map(a => typeOf(a.getType)).mkString(", ") + ")"
+          argsType.mkString(", ") + ")"
       } else {
         methType = typeOf(meth.getType) + " (" + structName + "*)"
       }
-
-      val methIndex = structMap(obj.getType.toString()).methods.indexOf(meth.value)
 
       if (!args.isEmpty) {
         objCompiled ::: argsCompiled :::
@@ -268,12 +279,22 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     case Not(expr: ExprTree) => Nil
   }
 
-  def generateClassHeaders(cl: ClassDecl): String = {
+  def generateClassHeaders(prog: Program, cl: ClassDecl): String = {
     var s: String = ""
     val className = cl.id.value
+    val c = new Class() // For recording information
+    currentClass = c
+
+    // Compute the parent hierarchy of this class in List(..., grandParent, parent, class)
+    var parentList = List(cl)
+    while (parentList.head.parent.isDefined) {
+      val parentName = parentList.head.parent.get.value
+      parentList = prog.classes.filter(_.id.value == parentName).head :: parentList
+    }
 
     // struct for the class with fields and a vtable
-    val fields = for (field <- cl.vars) yield (typeOf(field.tpe))
+    val fieldsName = for (c <- parentList; field <- c.vars) yield field.id.value
+    val fields = for (c <- parentList; field <- c.vars) yield (typeOf(field.tpe))
     s = s +
       "%struct." + className + " = type { " +
       "%struct." + className + "$vtable*" +
@@ -282,17 +303,46 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       " }\n"
 
     // struct for the vtable
+    var methodsName = List[String]()
+    var methods = List[String]()
+    parentList.foreach { c =>
+      c.methods.foreach { m =>
+        if (!methodsName.contains(m.id.value)) {
+          methodsName = methodsName ::: List(m.id.value)
+          methods = methods ::: List(methodSignature(cl, m)) // Pass real class here or NOT
+        }
+      }
+    }
+
     s = s +
       "%struct." + className + "$vtable = type { " +
-      cl.methods.map(methodSignature(cl, _)).mkString(", ") +
+      methods.mkString(", ") +
       "}\n"
 
     // global vtable
+    var methodsImpl = List[String]()
+    methodsName.foreach { m =>
+      var c: ClassDecl = cl
+      while (c.methods.filter(_.id.value == m).isEmpty) {
+        c = prog.classes.filter(_.id.value == c.parent.get.value).head // Will fail if no one defines this method
+      }
+      val meth = c.methods.filter(_.id.value == m).head
+      methodsImpl = methodsImpl ::: List(methodSignatureWithName(cl, c, meth))
+    }
+
     s = s +
       "@" + className + "$vtable = global %struct." +
       className + "$vtable { " +
-      cl.methods.map(methodSignatureWithName(cl, _)).mkString(", ") +
+      methodsImpl.mkString(", ") +
       "}, align 8\n"
+
+    // Record class structures for further references to find methods or fields index
+    c.tpe = "%struct." + cl.id.value
+    c.fields = fieldsName
+    c.methods = methodsName
+    structMap = structMap + (cl.id.value -> c)
+    for (p <- parentList; field <- p.vars) c.size += sizeOf(typeOf(field.tpe))
+    c.size += 8
 
     s + "\n"
   }
@@ -311,10 +361,11 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
   def generateNew(cl: ClassDecl): String = {
     lastRegUsed = 0
+    val mallocSize = structMap(cl.id.value).size
     val className = cl.id.value
     "define %struct." + className + "* @new$" + className + "() nounwind ssp {\n    " +
       (alloca("%obj", "%struct." + className + "*") ::
-        call(freshReg, "i8*", "@malloc", "i64 " + (8 + cl.vars.foldLeft(0)((acc, v) => acc + sizeOf(typeOf(v.tpe)))).toString) :: // TODO Change arg
+        call(freshReg, "i8*", "@malloc", "i64 " + mallocSize) :: // TODO Change arg
         bitcast(freshReg, "i8*", oldReg, "%struct." + className + "*") ::
         store(lastReg, "%obj", "%struct." + className + "*") ::
         load(freshReg, "%obj", "%struct." + className + "*") ::
@@ -335,14 +386,31 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     }
   }
 
-  def methodSignatureWithName(cl: ClassDecl, m: MethodDecl): String = {
-    if (m.args.isEmpty) {
-      typeOf(m.retType) + " (" + typeOf(cl.id) + ")* " +
-        "@" + cl.id.value + "$" + m.id.value + " "
+  def methodSignatureWithName(cl: ClassDecl, fromCl: ClassDecl, m: MethodDecl): String = {
+
+    var s = ""
+
+    if (cl == fromCl) {
+      s = typeOf(m.retType) + " (" + typeOf(cl.id) +
+        (if (m.args.isEmpty) "" else ", " + m.args.map(typeOf(_)).mkString(", ")) +
+        ")* " + "@" + fromCl.id.value + "$" + m.id.value + " "
     } else {
-      typeOf(m.retType) + " (" + typeOf(cl.id) + ", " + m.args.map(typeOf(_)).mkString(", ") + ")* " +
-        "@" + cl.id.value + "$" + m.id.value + " "
+
+      val methSig = typeOf(m.retType) + " (" + typeOf(cl.id) +
+        (if (m.args.isEmpty) "" else ", " + m.args.map(typeOf(_)).mkString(", ")) +
+        ")*"
+
+      val oldSig = typeOf(m.retType) + " (" + typeOf(fromCl.id) +
+        (if (m.args.isEmpty) "" else ", " + m.args.map(typeOf(_)).mkString(", ")) +
+        ")*"
+
+      s = methSig + " bitcast (" + oldSig + " @" + fromCl.id.value + "$" + m.id.value +
+        " to " + methSig + ")"
     }
+
+    currentClass.argsType = currentClass.argsType ::: List(m.args.map(typeOf(_)))
+    println(currentClass.argsType)
+    s
   }
 
   def typeOf(t: TypeTree): String = t match {
@@ -384,6 +452,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         m.vars.map(generateVarDecl).mkString("\n    ") + "\n    " +
         m.stats.flatMap(compileStat).map(_.asAssembly).mkString("\n    ") +
         "\n    " + compileExpr(m.retExpr).map(_.asAssembly).mkString("\n    ") +
+        (if(typeOf(m.retExpr.getType) != typeOf(m.retType)) bitcast(freshReg, typeOf(m.retExpr.getType), oldReg, typeOf(m.retType)).asAssembly else "") + 
         "\n    ret " + typeOf(m.retType) + " " + lastReg +
         "\n}"
     }
