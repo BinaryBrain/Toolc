@@ -11,6 +11,9 @@ import code.LLVM._
 object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
   var lastRegUsed: Int = 0;
+  var structMap: Map[String, Class] = Map()
+  var currentClass: Class = null
+  var currentLocals = List[String]()
   var strConstants: List[String] = List("@.str = private unnamed_addr constant [4 x i8] c\"%s\\0A\\00\"",
     "@.str1 = private unnamed_addr constant [4 x i8] c\"%d\\0A\\00\"");
 
@@ -95,8 +98,21 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         return s
 
       case Assign(id: Identifier, expr: ExprTree) =>
-        compileExpr(expr) :::
-          List(store(lastReg, "%" + id.value, typeOf(expr.getType)))
+
+        if (currentLocals.contains(id.value)) {
+          compileExpr(expr) :::
+            List(store(lastReg, "%" + id.value, typeOf(expr.getType)))
+        } else {
+          if (!currentClass.fields.contains(id.value)) {
+            sys.error("Unknown identifier for assign during code generation")
+          }
+          val exprCompiled = compileExpr(expr)
+          val savedReg = lastReg
+          exprCompiled :::
+          getelementptr(freshReg, currentClass.tpe + "*", "%this", 1 + currentClass.fields.indexOf(id.value)) ::
+            List(store(savedReg, lastReg, typeOf(id.getType)))
+
+        }
 
       case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) => Nil
     }
@@ -162,19 +178,21 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         methType = typeOf(meth.getType) + " (" + structName + "*)"
       }
 
+      val methIndex = structMap(obj.getType.toString()).methods.indexOf(meth.value)
+
       if (!args.isEmpty) {
         objCompiled ::: argsCompiled :::
-          List(getelementptr(freshReg, structName + "*", objReg)) :::
+          List(getelementptr(freshReg, structName + "*", objReg, 0)) :::
           List(load(freshReg, oldReg, structName + "$vtable*")) :::
-          List(getelementptr(freshReg, structName + "$vtable*", oldReg)) :::
+          List(getelementptr(freshReg, structName + "$vtable*", oldReg, methIndex)) :::
           List(load(freshReg, oldReg, methType + "*")) :::
           List(call(freshReg, typeOf(meth.getType), oldReg, structName + "* " + objReg + ", " +
             argsType.zip(savedArgsReg).map(a => a._1 + " " + a._2).mkString(", ")))
       } else {
         objCompiled :::
-          List(getelementptr(freshReg, structName + "*", objReg)) :::
+          List(getelementptr(freshReg, structName + "*", objReg, 0)) :::
           List(load(freshReg, oldReg, structName + "$vtable*")) :::
-          List(getelementptr(freshReg, structName + "$vtable*", oldReg)) :::
+          List(getelementptr(freshReg, structName + "$vtable*", oldReg, methIndex)) :::
           List(load(freshReg, oldReg, methType + "*")) :::
           List(call(freshReg, typeOf(meth.getType), oldReg, structName + "* " + objReg))
       }
@@ -202,9 +220,20 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         List(load(freshReg, oldReg, "i1"))
 
     case id: Identifier =>
-      val tpe = typeOf(id.getType)
-      val tpeDeref = tpe.subSequence(0, tpe.length() - 1)
-      List(load(freshReg, "%" + id.value, typeOf(id.getType)))
+
+      if (currentLocals.contains(id.value)) {
+        val tpe = typeOf(id.getType)
+        val tpeDeref = tpe.subSequence(0, tpe.length() - 1)
+        List(load(freshReg, "%" + id.value, typeOf(id.getType)))
+      } else {
+        if (!currentClass.fields.contains(id.value)) {
+          sys.error("Unknow identifier during code generation")
+        }
+
+        getelementptr(freshReg, currentClass.tpe + "*", "%this", 1 + currentClass.fields.indexOf(id.value)) ::
+          List(load(freshReg, oldReg, typeOf(id.getType)))
+
+      }
 
     case t: This =>
       alloca(freshReg, "%struct." + t.getType + "*") ::
@@ -221,12 +250,21 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     var s: String = ""
     val className = cl.id.value
 
+    // Generate classes for further references to find methods or fields index
+    val c = new Class()
+    c.tpe = "%struct." + className
+    c.fields = cl.vars.map(f => f.id.value)
+    c.methods = cl.methods.map(m => m.id.value)
+    structMap = structMap + (className -> c)
+
+    currentClass = c
+
     // struct for the class with fields and a vtable
-    val fields = for(field <- cl.vars) yield (typeOf(field.tpe))
+    val fields = for (field <- cl.vars) yield (typeOf(field.tpe))
     s = s +
       "%struct." + className + " = type { " +
       "%struct." + className + "$vtable*" +
-      (if(!fields.isEmpty) ", " else "") +
+      (if (!fields.isEmpty) ", " else "") +
       fields.mkString(", ") +
       " }\n"
 
@@ -257,16 +295,18 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     val className = cl.id.value
     "define %struct." + className + "* @new$" + className + "() nounwind ssp {\n    " +
       (alloca("%obj", "%struct." + className + "*") ::
-        call(freshReg, "i8*", "@malloc", "i64 8") :: // TODO Change arg
+        call(freshReg, "i8*", "@malloc", "i64 " + (8 + cl.vars.foldLeft(0)((acc, v) => acc + sizeOf(typeOf(v.tpe)))).toString) :: // TODO Change arg
         bitcast(freshReg, "i8*", oldReg, "%struct." + className + "*") ::
         store(lastReg, "%obj", "%struct." + className + "*") ::
         load(freshReg, "%obj", "%struct." + className + "*") ::
-        getelementptr(freshReg, "%struct." + className + "*", oldReg) ::
+        getelementptr(freshReg, "%struct." + className + "*", oldReg, 0) ::
         store("@" + className + "$vtable", lastReg, "%struct." + className + "$vtable*") ::
         load(freshReg, "%obj", "%struct." + className + "*") ::
         List(ret("%struct." + className + "*", lastReg))).map(_.asAssembly).mkString("\n    ") +
         "\n}"
   }
+
+  def sizeOf(tpe: String): Int = if (tpe == "i32" || tpe == "i1") 4 else 8
 
   def methodSignature(cl: ClassDecl, m: MethodDecl): String = {
     if (m.args.isEmpty) {
@@ -298,7 +338,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
   def typeOf(t: Type): String = t match {
     case TInt => "i32"
-    case TObject(id) => "%struct." + id + "*"
+    case TObject(id) => "%struct." + id.name + "*"
     case TBoolean => "i1"
     case TString => "i8*"
     case _ => "Not yet implemented"
@@ -306,6 +346,8 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
   def generateMethod(cl: ClassDecl, m: MethodDecl): String = {
     lastRegUsed = 0
+
+    currentLocals = m.args.map(_.id.value) ::: m.vars.map(_.id.value)
 
     if (m.args.isEmpty) {
       "define " + typeOf(m.retType) + " @" + cl.id.value + "$" + m.id.value + "(" + typeOf(cl.id) +

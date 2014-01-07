@@ -1,6 +1,14 @@
 package toolc.code
 
 object LLVM {
+  
+  
+  class Class {
+    var tpe: String = ""
+    var methods: List[String] = List()
+    var fields: List[String] = List()
+    override def toString() = "Methods: " + methods + " Fields: " + fields
+  }
 
   trait Instruction {
     def asAssembly(): String = "Undefined Instruction cannot produce code!"
@@ -72,9 +80,9 @@ object LLVM {
      reg + " = icmp slt i32 " + l + ", " + r
   }
   
-  case class getelementptr(reg: String, tpe: String, elem: String) extends Instruction {
+  case class getelementptr(reg: String, tpe: String, elem: String, index: Int) extends Instruction {
     override def asAssembly() =
-     reg + " = getelementptr inbounds " + tpe + " " + elem + ", i32 0, i32 0"
+     reg + " = getelementptr inbounds " + tpe + " " + elem + ", i32 0, i32 " + index
   }
   
   case class bitcast(reg: String, tpe: String, elem: String, toTpe: String) extends Instruction {
