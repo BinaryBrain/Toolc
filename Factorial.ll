@@ -7,7 +7,7 @@ target triple = "x86_64-apple-macosx10.7.4"
 
 %struct.Fact = type { %struct.Fact$vtable* }
 %struct.Fact$vtable = type { i32 (%struct.Fact*, i32)* }
-@Fact$vtable = global %struct.Fact$vtable { i32 (%struct.Fact*, i32)* @computeFactorial }, align 8
+@Fact$vtable = global %struct.Fact$vtable { i32 (%struct.Fact*, i32)* @Fact$computeFactorial }, align 8
 
 define %struct.Fact* @new$Fact() nounwind ssp {
     %obj = alloca %struct.Fact*, align 8
@@ -21,7 +21,7 @@ define %struct.Fact* @new$Fact() nounwind ssp {
     ret %struct.Fact* %5
 }
 
-define i32 @computeFactorial(%struct.Fact* %this, i32 %_num) nounwind ssp {
+define i32 @Fact$computeFactorial(%struct.Fact* %this, i32 %_num) nounwind ssp {
     %num = alloca i32, align 4
     store i32 %_num, i32* %num, align 4
     %num_aux = alloca i32, align 4

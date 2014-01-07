@@ -88,7 +88,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         } else {
           s = s :::
             List(call(freshReg, "i32 (i8*, ...)*", "@printf", "i8* getelementptr" +
-              " inbounds ([4 x i8]* @.str, i32 0, i32 0), i32 " +
+              " inbounds ([4 x i8]* @.str, i32 0, i32 0), i8* " +
               oldReg))
         }
 
@@ -168,7 +168,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
           List(load(freshReg, oldReg, structName + "$vtable*")) :::
           List(getelementptr(freshReg, structName + "$vtable*", oldReg)) :::
           List(load(freshReg, oldReg, methType + "*")) :::
-          List(call(freshReg, "i32", oldReg, structName + "* " + objReg + ", " +
+          List(call(freshReg, typeOf(meth.getType), oldReg, structName + "* " + objReg + ", " +
             argsType.zip(savedArgsReg).map(a => a._1 + " " + a._2).mkString(", ")))
       } else {
         objCompiled :::
@@ -176,7 +176,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
           List(load(freshReg, oldReg, structName + "$vtable*")) :::
           List(getelementptr(freshReg, structName + "$vtable*", oldReg)) :::
           List(load(freshReg, oldReg, methType + "*")) :::
-          List(call(freshReg, "i32", oldReg, structName + "* " + objReg))
+          List(call(freshReg, typeOf(meth.getType), oldReg, structName + "* " + objReg))
       }
 
     case IntLit(value: Int) =>
@@ -222,11 +222,13 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     val className = cl.id.value
 
     // struct for the class with fields and a vtable
+    val fields = for(field <- cl.vars) yield (typeOf(field.tpe))
     s = s +
       "%struct." + className + " = type { " +
-      "%struct." + className + "$vtable* " +
-      "}\n"
-    // TODO add fields
+      "%struct." + className + "$vtable*" +
+      (if(!fields.isEmpty) ", " else "") +
+      fields.mkString(", ") +
+      " }\n"
 
     // struct for the vtable
     s = s +
@@ -277,16 +279,18 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
   def methodSignatureWithName(cl: ClassDecl, m: MethodDecl): String = {
     if (m.args.isEmpty) {
       typeOf(m.retType) + " (" + typeOf(cl.id) + ")* " +
-        "@" + m.id.value + " "
+        "@" + cl.id.value + "$" + m.id.value + " "
     } else {
       typeOf(m.retType) + " (" + typeOf(cl.id) + ", " + m.args.map(typeOf(_)).mkString(", ") + ")* " +
-        "@" + m.id.value + " "
+        "@" + cl.id.value + "$" + m.id.value + " "
     }
   }
 
   def typeOf(t: TypeTree): String = t match {
     case IntType() => "i32"
     case Identifier(id) => "%struct." + id + "*"
+    case BooleanType() => "i1"
+    case StringType() => "i8*"
     case _ => "Not yet implemented"
   }
 
@@ -296,6 +300,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     case TInt => "i32"
     case TObject(id) => "%struct." + id + "*"
     case TBoolean => "i1"
+    case TString => "i8*"
     case _ => "Not yet implemented"
   }
 
@@ -303,21 +308,21 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     lastRegUsed = 0
 
     if (m.args.isEmpty) {
-      "define " + typeOf(m.retType) + " @" + m.id.value + "(" + typeOf(cl.id) +
+      "define " + typeOf(m.retType) + " @" + cl.id.value + "$" + m.id.value + "(" + typeOf(cl.id) +
         " %this" + ") nounwind ssp {\n    " +
         m.vars.map(generateVarDecl).mkString("\n    ") + "\n    " +
         m.stats.flatMap(compileStat).map(_.asAssembly).mkString("\n    ") +
-        "\n    " + compileExpr(m.retExpr).map(_.asAssembly).mkString("\n") +
+        "\n    " + compileExpr(m.retExpr).map(_.asAssembly).mkString("\n    ") +
         "\n    ret " + typeOf(m.retType) + " " + lastReg +
         "\n}"
     } else {
-      "define " + typeOf(m.retType) + " @" + m.id.value + "(" + typeOf(cl.id) +
+      "define " + typeOf(m.retType) + " @" + cl.id.value + "$" + m.id.value + "(" + typeOf(cl.id) +
         " %this, " + m.args.map(arg => typeOf(arg) + " %_" +
           arg.id.value).mkString(", ") + ") nounwind ssp {\n    " +
         m.args.map(generateArg).mkString("\n    ") + "\n    " +
         m.vars.map(generateVarDecl).mkString("\n    ") + "\n    " +
         m.stats.flatMap(compileStat).map(_.asAssembly).mkString("\n    ") +
-        "\n    " + compileExpr(m.retExpr).map(_.asAssembly).mkString("\n") +
+        "\n    " + compileExpr(m.retExpr).map(_.asAssembly).mkString("\n    ") +
         "\n    ret " + typeOf(m.retType) + " " + lastReg +
         "\n}"
     }
