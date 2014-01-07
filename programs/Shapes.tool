@@ -55,7 +55,7 @@ class Diamond extends Quadrilateral {
 		println("    \      /    ");
 		println("     \    /     ");
 		println("      \  /      ");
-		return "       \/       ";
+		return "        \/       ";
 	}
 }
 

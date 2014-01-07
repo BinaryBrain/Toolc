@@ -387,7 +387,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     val className = cl.id.value
     "define %struct." + className + "* @new$" + className + "() nounwind ssp {\n    " +
       (alloca("%obj", "%struct." + className + "*") ::
-        call(freshReg, "i8*", "@malloc", "i64 " + mallocSize) :: // TODO Change arg
+        call(freshReg, "i8*", "@_mymalloc", "i64 " + mallocSize) :: // TODO Change arg
         bitcast(freshReg, "i8*", oldReg, "%struct." + className + "*") ::
         store(lastReg, "%obj", "%struct." + className + "*") ::
         load(freshReg, "%obj", "%struct." + className + "*") ::
@@ -493,6 +493,8 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     lastRegUsed = 0
     "define i32 @main() nounwind ssp {\n    " +
       prog.main.stats.flatMap(compileStat).map(_.asAssembly).mkString("\n    ") +
+      "\n    " + load(freshReg, "@l", "%struct._List*").asAssembly +
+      "\n    " + "call void @_List_free(%struct._List* " + lastReg + ")" +
       "\n    ret i32 0\n" +
       "}\n\n"
   }
@@ -503,7 +505,9 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       "\"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:" +
       "64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0" +
       ":64-s0:64:64-f80:128:128-n8:16:32:64\"\n" +
-      "target triple = \"x86_64-apple-macosx10.7.4\"\n\n" //TODO Change OS
+      "target triple = \"x86_64-apple-macosx10.7.4\"\n\n" +//TODO Change OS 
+      "%struct._List = type { %struct._List*, i8* }\n" +
+      "@l = global %struct._List* null, align 8\n\n"
   }
 
   def addStrConstant(str: String): Unit = {
@@ -551,7 +555,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
   %10 = load i32* %size, align 4
   %11 = sext i32 %10 to i64
   %12 = mul i64 %11, 1
-  %13 = call i8* @malloc(i64 %12)
+  %13 = call i8* @_mymalloc(i64 %12)
   store i8* %13, i8** %str, align 8
   %14 = load i8** %str, align 8
   %15 = call i64 @llvm.objectsize.i64(i8* %14, i1 false)
@@ -686,6 +690,77 @@ define i8* @boolToString(i1 %b) nounwind ssp {
 ; <label>:7                                       ; preds = %6, %5
   %8 = load i8** %1
   ret i8* %8
+}
+      
+      
+      
+      
+      
+define %struct._List* @_List_add(%struct._List* %list, i8* %ptr) nounwind ssp {
+  %1 = alloca %struct._List*, align 8
+  %2 = alloca i8*, align 8
+  %newNode = alloca %struct._List*, align 8
+  store %struct._List* %list, %struct._List** %1, align 8
+  store i8* %ptr, i8** %2, align 8
+  %3 = call i8* @malloc(i64 16)
+  %4 = bitcast i8* %3 to %struct._List*
+  store %struct._List* %4, %struct._List** %newNode, align 8
+  %5 = load i8** %2, align 8
+  %6 = load %struct._List** %newNode, align 8
+  %7 = getelementptr inbounds %struct._List* %6, i32 0, i32 1
+  store i8* %5, i8** %7, align 8
+  %8 = load %struct._List** %1, align 8
+  %9 = load %struct._List** %newNode, align 8
+  %10 = getelementptr inbounds %struct._List* %9, i32 0, i32 0
+  store %struct._List* %8, %struct._List** %10, align 8
+  %11 = load %struct._List** %newNode, align 8
+  ret %struct._List* %11
+}
+
+define void @_List_free(%struct._List* %list) nounwind ssp {
+  %1 = alloca %struct._List*, align 8
+  store %struct._List* %list, %struct._List** %1, align 8
+  %2 = load %struct._List** %1, align 8
+  %3 = getelementptr inbounds %struct._List* %2, i32 0, i32 0
+  %4 = load %struct._List** %3, align 8
+  %5 = icmp ne %struct._List* %4, null
+  br i1 %5, label %6, label %14
+
+; <label>:6                                       ; preds = %0
+  %7 = load %struct._List** %1, align 8
+  %8 = getelementptr inbounds %struct._List* %7, i32 0, i32 0
+  %9 = load %struct._List** %8, align 8
+  call void @_List_free(%struct._List* %9)
+  %10 = load %struct._List** %1, align 8
+  %11 = getelementptr inbounds %struct._List* %10, i32 0, i32 0
+  %12 = load %struct._List** %11, align 8
+  %13 = bitcast %struct._List* %12 to i8*
+  call void @free(i8* %13)
+  br label %14
+
+; <label>:14                                      ; preds = %6, %0
+  %15 = load %struct._List** %1, align 8
+  %16 = getelementptr inbounds %struct._List* %15, i32 0, i32 1
+  %17 = load i8** %16, align 8
+  call void @free(i8* %17)
+  ret void
+}
+
+declare void @free(i8*)
+
+define i8* @_mymalloc(i64 %size) nounwind ssp {
+  %1 = alloca i64, align 8
+  %ptr = alloca i8*, align 8
+  store i64 %size, i64* %1, align 8
+  %2 = load i64* %1, align 8
+  %3 = call i8* @malloc(i64 %2)
+  store i8* %3, i8** %ptr, align 8
+  %4 = load %struct._List** @l, align 8
+  %5 = load i8** %ptr, align 8
+  %6 = call %struct._List* @_List_add(%struct._List* %4, i8* %5)
+  store %struct._List* %6, %struct._List** @l, align 8
+  %7 = load i8** %ptr, align 8
+  ret i8* %7
 }"""
   }
 }

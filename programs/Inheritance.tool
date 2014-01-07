@@ -14,6 +14,7 @@ class Run
 	var work: Worker;
 	var temp: Temporary;
 	var downcast: Person;
+	var dummy: Bool;
 	
 	var upcast: Temporary;
 	//upcast= new Worker(); //should not work
@@ -54,7 +55,7 @@ class Person
 	
 	def setName(s:String): String =
 	{
-		name=s;
+		name = s;
 		return name;
 	}
 }

@@ -5,7 +5,14 @@ object HelloWorld {
 }
 
 class Animal {
-	def say(a: Int): Int = {
-		return a;
+	def say(a: Int): Bool = {
+		var i: Int;
+		i = 0;
+		while(i < a) {
+			println(i);
+			i = i + 1;
+		}
+		
+		return true;
 	}
 }

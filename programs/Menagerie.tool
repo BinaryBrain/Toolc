@@ -26,6 +26,9 @@ class House {
 		dummy = new Dog().withName("Dog       ").talk();
 		animal = new Human().withName("John      ");
 		dummy = animal.talk();
+		
+		animal = new Cat().init("Miaou");
+		dummy = animal.talk();
 		return true;
 	}
 }
@@ -49,6 +52,12 @@ class Animal {
 }
 
 class Cat extends Animal {
+
+	def init(n: String): Cat = {
+		name = n;
+		return this;
+	}
+
 	def talk(): Bool = {
 		println(this.getName() + ": Meow!");
 		return true;
