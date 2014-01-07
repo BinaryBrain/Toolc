@@ -165,16 +165,16 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       if (!args.isEmpty) {
         objCompiled ::: argsCompiled :::
           List(getelementptr(freshReg, structName + "*", objReg)) :::
-          List(load(freshReg, oldReg, structName + "_vtable*")) :::
-          List(getelementptr(freshReg, structName + "_vtable*", oldReg)) :::
+          List(load(freshReg, oldReg, structName + "$vtable*")) :::
+          List(getelementptr(freshReg, structName + "$vtable*", oldReg)) :::
           List(load(freshReg, oldReg, methType + "*")) :::
-         List(call(freshReg, "i32", oldReg, structName + "* " + objReg + ", " +
+          List(call(freshReg, "i32", oldReg, structName + "* " + objReg + ", " +
             argsType.zip(savedArgsReg).map(a => a._1 + " " + a._2).mkString(", ")))
       } else {
         objCompiled :::
           List(getelementptr(freshReg, structName + "*", objReg)) :::
-          List(load(freshReg, oldReg, structName + "_vtable*")) :::
-          List(getelementptr(freshReg, structName + "_vtable*", oldReg)) :::
+          List(load(freshReg, oldReg, structName + "$vtable*")) :::
+          List(getelementptr(freshReg, structName + "$vtable*", oldReg)) :::
           List(load(freshReg, oldReg, methType + "*")) :::
           List(call(freshReg, "i32", oldReg, structName + "* " + objReg))
       }
@@ -203,7 +203,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
     case id: Identifier =>
       val tpe = typeOf(id.getType)
-      val tpeDeref = tpe.subSequence(0, tpe.length()-1)
+      val tpeDeref = tpe.subSequence(0, tpe.length() - 1)
       List(load(freshReg, "%" + id.value, typeOf(id.getType)))
 
     case t: This =>
@@ -213,7 +213,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
     case NewIntArray(size: ExprTree) => Nil
     case New(tpe: Identifier) =>
-      List(call(freshReg, "%struct." + tpe.value + "*", "@new_" + tpe.value, ""))
+      List(call(freshReg, "%struct." + tpe.value + "*", "@new$" + tpe.value, ""))
     case Not(expr: ExprTree) => Nil
   }
 
@@ -224,20 +224,20 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     // struct for the class with fields and a vtable
     s = s +
       "%struct." + className + " = type { " +
-      "%struct." + className + "_vtable* " +
+      "%struct." + className + "$vtable* " +
       "}\n"
     // TODO add fields
 
     // struct for the vtable
     s = s +
-      "%struct." + className + "_vtable = type { " +
+      "%struct." + className + "$vtable = type { " +
       cl.methods.map(methodSignature(cl, _)).mkString(", ") +
       "}\n"
 
     // global vtable
     s = s +
-      "@" + className + "_vtable = global %struct." +
-      className + "_vtable { " +
+      "@" + className + "$vtable = global %struct." +
+      className + "$vtable { " +
       cl.methods.map(methodSignatureWithName(cl, _)).mkString(", ") +
       "}, align 8\n\n"
 
@@ -253,14 +253,14 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
   def generateNew(cl: ClassDecl): String = {
     lastRegUsed = 0
     val className = cl.id.value
-    "define %struct." + className + "* @new_" + className + "() nounwind ssp {\n    " +
+    "define %struct." + className + "* @new$" + className + "() nounwind ssp {\n    " +
       (alloca("%obj", "%struct." + className + "*") ::
-        call(freshReg, "i8*", "@malloc", "i64 8") ::  // TODO Change arg
+        call(freshReg, "i8*", "@malloc", "i64 8") :: // TODO Change arg
         bitcast(freshReg, "i8*", oldReg, "%struct." + className + "*") ::
         store(lastReg, "%obj", "%struct." + className + "*") ::
         load(freshReg, "%obj", "%struct." + className + "*") ::
         getelementptr(freshReg, "%struct." + className + "*", oldReg) ::
-        store("@" + className + "_vtable", lastReg, "%struct." + className + "_vtable*") ::
+        store("@" + className + "$vtable", lastReg, "%struct." + className + "$vtable*") ::
         load(freshReg, "%obj", "%struct." + className + "*") ::
         List(ret("%struct." + className + "*", lastReg))).map(_.asAssembly).mkString("\n    ") +
         "\n}"
