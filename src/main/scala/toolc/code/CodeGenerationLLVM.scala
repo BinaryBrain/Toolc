@@ -175,8 +175,18 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
   }
 
   def compileExpr(expr: ExprTree): List[Instruction] = expr match {
-    case And(lhs: ExprTree, rhs: ExprTree) => Nil
-    case Or(lhs: ExprTree, rhs: ExprTree) => Nil
+    
+  case And(lhs: ExprTree, rhs: ExprTree) =>
+      val l = compileExpr(lhs)
+      val savedReg = lastReg
+      val r = compileExpr(rhs)
+      l ::: r ::: List(and(freshReg, savedReg, oldReg))
+      
+    case Or(lhs: ExprTree, rhs: ExprTree) =>
+      val l = compileExpr(lhs)
+      val savedReg = lastReg
+      val r = compileExpr(rhs)
+      l ::: r ::: List(or(freshReg, savedReg, oldReg))
 
     case Plus(lhs: ExprTree, rhs: ExprTree) =>
       val l = compileExpr(lhs)
