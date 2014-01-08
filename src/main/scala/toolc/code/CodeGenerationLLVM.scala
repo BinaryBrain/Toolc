@@ -178,15 +178,48 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     
   case And(lhs: ExprTree, rhs: ExprTree) =>
       val l = compileExpr(lhs)
-      val savedReg = lastReg
+      val lReg = lastReg
+      val beginLabel = freshReg
+      val trueLabel = freshReg
       val r = compileExpr(rhs)
-      l ::: r ::: List(and(freshReg, savedReg, oldReg))
+      val rReg = lastReg
+      val secondLabel = freshReg
+      val endLabel = freshReg
+      
+      l :::
+      jump(beginLabel) ::
+      label(beginLabel) ::
+      List(branch(lReg, trueLabel, endLabel)) :::
+      List(label(trueLabel)) :::
+      r :::
+      jump(secondLabel) ::
+      label(secondLabel) ::
+      List(jump(endLabel)) :::
+      List(label(endLabel)) :::
+      List(phi(freshReg, "false", beginLabel, rReg, secondLabel))
       
     case Or(lhs: ExprTree, rhs: ExprTree) =>
       val l = compileExpr(lhs)
-      val savedReg = lastReg
+      val lReg = lastReg
+      val beginLabel = freshReg
+      val falseLabel = freshReg
       val r = compileExpr(rhs)
-      l ::: r ::: List(or(freshReg, savedReg, oldReg))
+      val rReg = lastReg
+      val secondLabel = freshReg
+      val endLabel = freshReg
+      
+      
+      l ::: 
+      jump(beginLabel) ::
+      label(beginLabel) ::
+      List(branch(lReg, endLabel, falseLabel)) :::
+      List(label(falseLabel)) :::
+      r :::
+      jump(secondLabel) ::
+      label(secondLabel) ::
+      List(jump(endLabel)) :::
+      List(label(endLabel)) :::
+      List(phi(freshReg, "true", beginLabel, rReg, secondLabel))
 
     case Plus(lhs: ExprTree, rhs: ExprTree) =>
       val l = compileExpr(lhs)
@@ -374,11 +407,11 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     val fieldsName = for (c <- parentList; field <- c.vars) yield field.id.value
     val fields = for (c <- parentList; field <- c.vars) yield (typeOf(field.tpe))
     s = s +
-      "%struct." + className + " = type { " +
+      "%struct." + className + " = type <{ " +
       "%struct." + className + "$vtable*" +
       (if (!fields.isEmpty) ", " else "") +
       fields.mkString(", ") +
-      " }\n"
+      " }>\n"
 
     // struct for the vtable
     var methodsName = List[String]()
@@ -522,6 +555,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         m.vars.map(generateVarDecl).mkString("\n    ") + "\n    " +
         m.stats.flatMap(compileStat).map(_.asAssembly).mkString("\n    ") +
         "\n    " + compileExpr(m.retExpr).map(_.asAssembly).mkString("\n    ") +
+        (if (typeOf(m.retExpr.getType) != typeOf(m.retType)) bitcast(freshReg, typeOf(m.retExpr.getType), oldReg, typeOf(m.retType)).asAssembly else "") +
         "\n    ret " + typeOf(m.retType) + " " + lastReg +
         "\n}"
     } else {
@@ -564,8 +598,8 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       "64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0" +
       ":64-s0:64:64-f80:128:128-n8:16:32:64\"\n" +
       "target triple = \"x86_64-apple-macosx10.7.4\"\n\n" + //TODO Change OS
-      "%struct.$IntArray = type { i32*, i32 }\n" +
-      "%struct._List = type { %struct._List*, i8* }\n" +
+      "%struct.$IntArray = type <{ i32*, i32 }>\n" +
+      "%struct._List = type <{ %struct._List*, i8* }>\n" +
       "@l = global %struct._List* null, align 8\n\n"
   }
 
@@ -771,7 +805,7 @@ define %struct.$IntArray* @$new_$IntArray(i32 %size) nounwind ssp {
   %1 = alloca i32, align 4
   %intArray = alloca %struct.$IntArray*, align 8
   store i32 %size, i32* %1, align 4
-  %2 = call i8* @_mymalloc(i64 16)
+  %2 = call i8* @_mymalloc(i64 12)
   %3 = bitcast i8* %2 to %struct.$IntArray*
   store %struct.$IntArray* %3, %struct.$IntArray** %intArray, align 8
   %4 = load i32* %1, align 4

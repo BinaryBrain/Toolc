@@ -116,5 +116,10 @@ object LLVM {
     override def asAssembly() =
      "ret " + tpe + " " + elem
   }
+  
+  case class phi(reg:String, reg1: String, pred1: String, reg2: String, pred2: String) extends Instruction {
+    override def asAssembly() =
+     reg + " = phi i1 [ " + reg1 + ", " + pred1 + " ], [ " + reg2 + ", " + pred2 + " ]"
+  }
 
 }

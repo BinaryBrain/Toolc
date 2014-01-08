@@ -100,7 +100,7 @@ object TypeChecking extends Pipeline[Program, Program] {
             }
 
           }
-
+          
           val zippedArgs = mc.args.zip(ms.argList)
           zippedArgs.foreach {
             case (arg, mArg) =>
