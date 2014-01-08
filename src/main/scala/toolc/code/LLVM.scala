@@ -67,6 +67,11 @@ object LLVM {
      reg + " = sub nsw i32 " + l + ", " + r
   }
   
+  case class xor(reg: String, l: String, r: String) extends Instruction {
+    override def asAssembly() =
+     reg + " = xor i1 " + l + ", " + r
+  }
+  
   case class mul(reg: String, l: String, r: String) extends Instruction {
     override def asAssembly() =
      reg + " = mul nsw i32 " + l + ", " + r

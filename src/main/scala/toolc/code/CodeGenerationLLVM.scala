@@ -298,7 +298,11 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     case NewIntArray(size: ExprTree) => Nil
     case New(tpe: Identifier) =>
       List(call(freshReg, "%struct." + tpe.value + "*", "@new$" + tpe.value, ""))
-    case Not(expr: ExprTree) => Nil
+      
+    case Not(expr: ExprTree) =>
+      	compileExpr(expr) :::
+      	List(xor(freshReg, oldReg, "1"))
+      	
   }
 
   def generateClassHeaders(prog: Program, cl: ClassDecl): String = {
