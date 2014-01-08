@@ -88,17 +88,15 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         val trueLabel = freshReg
         val body = compileStat(stat)
         val falseLabel = freshReg
-        
-        
+
         jump(beforeCond) ::
-        label(beforeCond) ::
-        cond :::
-        List(branch(condReg, trueLabel, falseLabel)) :::
-        List(label(trueLabel)) :::
-        body :::
-        List(jump(beforeCond)) :::
-        List(label(falseLabel))
-        
+          label(beforeCond) ::
+          cond :::
+          List(branch(condReg, trueLabel, falseLabel)) :::
+          List(label(trueLabel)) :::
+          body :::
+          List(jump(beforeCond)) :::
+          List(label(falseLabel))
 
       case Println(expr: ExprTree) =>
         var s = compileExpr(expr)
@@ -109,8 +107,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
             List(call(freshReg, "i32 (i8*, ...)*", "@printf", "i8* getelementptr" +
               " inbounds ([4 x i8]* @.str, i32 0, i32 0), i8* " +
               oldReg))
-        }
-        else if (expr.getType == TInt) {
+        } else if (expr.getType == TInt) {
           s = s :::
             List(call(freshReg, "i32 (i8*, ...)*", "@printf", "i8* getelementptr" +
               " inbounds ([4 x i8]* @.str1, i32 0, i32 0), i32 " +
@@ -128,18 +125,18 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
         if (currentLocals.contains(id.value)) {
           var exprCompiled = compileExpr(expr)
-          
-          if(typeOf(id.getType) != typeOf(expr.getType)) {
+
+          if (typeOf(id.getType) != typeOf(expr.getType)) {
             exprCompiled = exprCompiled ::: List(bitcast(freshReg, typeOf(expr.getType), oldReg, typeOf(id.getType)))
           }
-            exprCompiled ::: List(store(lastReg, "%" + id.value, typeOf(id.getType)))
-            
+          exprCompiled ::: List(store(lastReg, "%" + id.value, typeOf(id.getType)))
+
         } else {
           if (!currentClass.fields.contains(id.value)) {
             sys.error("Unknown identifier for assign during code generation")
           }
           var exprCompiled = compileExpr(expr)
-          if(typeOf(id.getType) != typeOf(expr.getType)) {
+          if (typeOf(id.getType) != typeOf(expr.getType)) {
             exprCompiled = exprCompiled ::: List(bitcast(freshReg, typeOf(expr.getType), oldReg, typeOf(id.getType)))
           }
           val savedReg = lastReg
@@ -149,7 +146,31 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
         }
 
-      case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) => Nil
+      case ArrayAssign(id: Identifier, index: ExprTree, expr: ExprTree) =>
+        val indexCompiled = compileExpr(index)
+        val indexReg = lastReg
+        val dataCompiled = compileExpr(expr)
+        val dataReg = lastReg
+
+        if (currentLocals.contains(id.value)) {
+          val arrayReg = "%" + id.value
+
+          indexCompiled :::
+          dataCompiled :::
+        	List(load(freshReg, arrayReg, "%struct.$IntArray*")) :::
+            List(call(freshReg, "%struct.$IntArray*", "@$IntArray_Assign", "%struct.$IntArray* " + oldReg + ", i32 " + indexReg + ", i32 " + dataReg))
+        } else {
+          if (!currentClass.fields.contains(id.value)) {
+            sys.error("Unknown identifier for assign during code generation")
+          }
+          
+          indexCompiled :::
+          dataCompiled :::
+          List(getelementptr(freshReg, currentClass.tpe + "*", "%this", 1 + currentClass.fields.indexOf(id.value))) :::
+          List(load(freshReg, oldReg, "%struct.$IntArray*")) :::
+          List(call(freshReg, "%struct.$IntArray*", "@$IntArray_Assign", "%struct.$IntArray* " + oldReg + ", i32 " + indexReg + ", i32 " + dataReg))
+          
+        }
     }
   }
 
@@ -202,8 +223,22 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       val r = compileExpr(rhs)
       l ::: r ::: List(equal(freshReg, savedReg, oldReg, typeOf(lhs.getType)))
 
-    case ArrayRead(arr: ExprTree, index: ExprTree) => Nil
-    case ArrayLength(arr: ExprTree) => Nil
+    case ArrayRead(arr: ExprTree, index: ExprTree) =>
+      val arrayCompiled = compileExpr(arr)
+      val arrayReg = lastReg
+      val indexCompiled = compileExpr(index)
+      val indexReg = lastReg
+
+      arrayCompiled :::
+        indexCompiled :::
+        List(call(freshReg, "i32", "@$IntArray_Read", "%struct.$IntArray* " + arrayReg + ", i32 " + indexReg))
+
+    case ArrayLength(arr: ExprTree) =>
+      val arrayCompiled = compileExpr(arr)
+      val arrayReg = lastReg
+
+      arrayCompiled :::
+        List(call(freshReg, "i32", "@$IntArray_Length", "%struct.$IntArray* " + arrayReg))
 
     case MethodCall(obj: ExprTree, meth: Identifier, args: List[ExprTree]) =>
       val structName = "%struct." + obj.getType
@@ -218,13 +253,14 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       val className = obj.getType match { case t: TObject => t.classSymbol.name case _ => sys.error("TODO ERROR") } //TODO
       argsType = structMap(className).argsType(methIndex)
 
-      argsType.zip(args).foreach { case (t, a) =>
-        argsCompiled = argsCompiled ::: compileExpr(a)
-        
-        if(typeOf(a.getType) != t) {
-          argsCompiled = argsCompiled ::: List(bitcast(freshReg, typeOf(a.getType), oldReg, t))
-        }
-        savedArgsReg = savedArgsReg ::: List(lastReg)
+      argsType.zip(args).foreach {
+        case (t, a) =>
+          argsCompiled = argsCompiled ::: compileExpr(a)
+
+          if (typeOf(a.getType) != t) {
+            argsCompiled = argsCompiled ::: List(bitcast(freshReg, typeOf(a.getType), oldReg, t))
+          }
+          savedArgsReg = savedArgsReg ::: List(lastReg)
       }
 
       var methType: String = ""
@@ -295,14 +331,20 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         store("%this", lastReg, "%struct." + t.getType + "*") ::
         List(load(freshReg, oldReg, "%struct." + t.getType + "*"))
 
-    case NewIntArray(size: ExprTree) => Nil
+    case NewIntArray(size: ExprTree) =>
+      val compiledExpr = compileExpr(size);
+      val sizeReg = lastReg
+
+      compiledExpr :::
+        List(call(freshReg, "%struct.$IntArray*", "@$new_$IntArray", "i32 " + sizeReg))
+
     case New(tpe: Identifier) =>
       List(call(freshReg, "%struct." + tpe.value + "*", "@new$" + tpe.value, ""))
-      
+
     case Not(expr: ExprTree) =>
-      	compileExpr(expr) :::
-      	List(xor(freshReg, oldReg, "1"))
-      	
+      compileExpr(expr) :::
+        List(xor(freshReg, oldReg, "1"))
+
   }
 
   def generateClassHeaders(prog: Program, cl: ClassDecl): String = {
@@ -444,6 +486,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     case Identifier(id) => "%struct." + id + "*"
     case BooleanType() => "i1"
     case StringType() => "i8*"
+    case IntArrayType() => "%struct.$IntArray*"
     case _ => "Not yet implemented"
   }
 
@@ -454,6 +497,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     case TObject(id) => "%struct." + id.name + "*"
     case TBoolean => "i1"
     case TString => "i8*"
+    case TIntArray => "%struct.$IntArray*"
     case _ => "Not yet implemented"
   }
 
@@ -478,7 +522,7 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
         m.vars.map(generateVarDecl).mkString("\n    ") + "\n    " +
         m.stats.flatMap(compileStat).map(_.asAssembly).mkString("\n    ") +
         "\n    " + compileExpr(m.retExpr).map(_.asAssembly).mkString("\n    ") +
-        (if(typeOf(m.retExpr.getType) != typeOf(m.retType)) bitcast(freshReg, typeOf(m.retExpr.getType), oldReg, typeOf(m.retType)).asAssembly else "") + 
+        (if (typeOf(m.retExpr.getType) != typeOf(m.retType)) bitcast(freshReg, typeOf(m.retExpr.getType), oldReg, typeOf(m.retType)).asAssembly else "") +
         "\n    ret " + typeOf(m.retType) + " " + lastReg +
         "\n}"
     }
@@ -509,7 +553,8 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       "\"e-p:64:64:64-i1:8:8-i8:8:8-i16:16:16-i32:32:32-i64:" +
       "64:64-f32:32:32-f64:64:64-v64:64:64-v128:128:128-a0:0" +
       ":64-s0:64:64-f80:128:128-n8:16:32:64\"\n" +
-      "target triple = \"x86_64-apple-macosx10.7.4\"\n\n" +//TODO Change OS 
+      "target triple = \"x86_64-apple-macosx10.7.4\"\n\n" + //TODO Change OS
+      "%struct.$IntArray = type { i32*, i32 }\n" +
       "%struct._List = type { %struct._List*, i8* }\n" +
       "@l = global %struct._List* null, align 8\n\n"
   }
@@ -709,6 +754,72 @@ define i8* @_mymalloc(i64 %size) nounwind ssp {
   store %struct._List* %6, %struct._List** @l, align 8
   %7 = load i8** %ptr, align 8
   ret i8* %7
+}
+      
+      
+define %struct.$IntArray* @$new_$IntArray(i32 %size) nounwind ssp {
+  %1 = alloca i32, align 4
+  %intArray = alloca %struct.$IntArray*, align 8
+  store i32 %size, i32* %1, align 4
+  %2 = call i8* @_mymalloc(i64 16)
+  %3 = bitcast i8* %2 to %struct.$IntArray*
+  store %struct.$IntArray* %3, %struct.$IntArray** %intArray, align 8
+  %4 = load i32* %1, align 4
+  %5 = sext i32 %4 to i64
+  %6 = mul nsw i64 %5, 4
+  %7 = call i8* @_mymalloc(i64 %6)
+  %8 = bitcast i8* %7 to i32*
+  %9 = load %struct.$IntArray** %intArray, align 8
+  %10 = getelementptr inbounds %struct.$IntArray* %9, i32 0, i32 0
+  store i32* %8, i32** %10, align 8
+  %11 = load i32* %1, align 4
+  %12 = load %struct.$IntArray** %intArray, align 8
+  %13 = getelementptr inbounds %struct.$IntArray* %12, i32 0, i32 1
+  store i32 %11, i32* %13, align 4
+  %14 = load %struct.$IntArray** %intArray, align 8
+  ret %struct.$IntArray* %14
+}
+
+define i32 @$IntArray_Read(%struct.$IntArray* %intArray, i32 %index) nounwind ssp {
+  %1 = alloca %struct.$IntArray*, align 8
+  %2 = alloca i32, align 4
+  store %struct.$IntArray* %intArray, %struct.$IntArray** %1, align 8
+  store i32 %index, i32* %2, align 4
+  %3 = load i32* %2, align 4
+  %4 = sext i32 %3 to i64
+  %5 = load %struct.$IntArray** %1, align 8
+  %6 = getelementptr inbounds %struct.$IntArray* %5, i32 0, i32 0
+  %7 = load i32** %6, align 8
+  %8 = getelementptr inbounds i32* %7, i32 %3
+  %9 = load i32* %8
+  ret i32 %9
+}
+
+define %struct.$IntArray* @$IntArray_Assign(%struct.$IntArray* %intArray, i32 %index, i32 %data) nounwind ssp {
+  %1 = alloca %struct.$IntArray*, align 8
+  %2 = alloca i32, align 4
+  %3 = alloca i32, align 4
+  store %struct.$IntArray* %intArray, %struct.$IntArray** %1, align 8
+  store i32 %index, i32* %2, align 4
+  store i32 %data, i32* %3, align 4
+  %4 = load i32* %3, align 4
+  %5 = load i32* %2, align 4
+  %6 = sext i32 %5 to i64
+  %7 = load %struct.$IntArray** %1, align 8
+  %8 = getelementptr inbounds %struct.$IntArray* %7, i32 0, i32 0
+  %9 = load i32** %8, align 8
+  %10 = getelementptr inbounds i32* %9, i32 %5
+  store i32 %4, i32* %10
+  ret %struct.$IntArray* %7
+}
+
+define i32 @$IntArray_Length(%struct.$IntArray* %intArray) nounwind ssp {
+  %1 = alloca %struct.$IntArray*, align 8
+  store %struct.$IntArray* %intArray, %struct.$IntArray** %1, align 8
+  %2 = load %struct.$IntArray** %1, align 8
+  %3 = getelementptr inbounds %struct.$IntArray* %2, i32 0, i32 1
+  %4 = load i32* %3, align 4
+  ret i32 %4
 }"""
   }
 }
