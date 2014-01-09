@@ -16,7 +16,69 @@ object LLVM {
     def asAssembly(): String = "Undefined Instruction cannot produce code!"
     def align(tpe: String) = if (tpe == "i32" || tpe == "i1") 4 else 8
   }
-
+  
+  case class triple() extends Instruction {
+    
+    def getArchTypeName: String = {
+	  
+	  val arch: String = System.getProperty("os.arch") match {
+	  	case "x86" | "i386" | "i686" => "i386"
+	  	case "x86_64" | "amd64" => "x86_64"
+		case "ppc" => "ppc"
+		case _ => "x86_64"
+	  }
+	  
+	  arch
+    }
+    /*
+    def getOSTypeName: String = {
+      val osName = System.getProperty("os.name")
+	  val win = osName.substring(0, 7)
+	  val mac = osName.substring(0, 3)
+	  
+	  val os: String = osName match {
+	    case WinPattern(w) => "win32"
+		case MacPattern(m) => "macosx"
+		case "Linux" => "linux"
+		case "FreeBSD" => "freebsd"
+		case _ => "linux"
+	  }
+	  
+	  os
+    }
+    */
+    def getOSTypeName: String = {
+      val osName: String = System.getProperty("os.name");
+	  val WinPattern = "(Windows.*)".r
+	  val MacPattern = "(Mac.*)".r
+	  val os: String = osName match {
+	    case WinPattern(w) => "win32"
+		case MacPattern(m) => "macosx"
+		case "Linux" => "linux"
+		case "FreeBSD" => "freebsd"
+		case _ => "poney"
+	  }
+	  
+	  os
+    }
+    
+    def getVendorTypeName: String = {
+      val osName: String = System.getProperty("os.name");
+	  val WinPattern = "(Windows.*)".r
+	  val MacPattern = "(Mac.*)".r
+	  val vendor: String = osName match {
+		case MacPattern(m) => "apple"
+		case _ => "pc"
+	  }
+	  
+	  vendor
+    }
+    
+    override def asAssembly() = {
+      getArchTypeName + '-' + getVendorTypeName + '-' + getOSTypeName
+  	}
+  }
+  
   case class alloca(reg: String, tpe: String) extends Instruction {
     override def asAssembly() =
       reg + " = alloca " + tpe + ", align " + align(tpe)
