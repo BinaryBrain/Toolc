@@ -1,7 +1,7 @@
 \subsection{Sketch of the implementation}
-The code generation begins with the generation of some headers for the LLVM-IR files. These are the Module Identifier, the target datalayout which specifies the size in bits of common types (for example i32, integer 32 bits, takes 32 bits) and the target triple which is the target computer and operating systems (in order to generate native code later). Headers also include structures declarations for the List type (see memory management part) and the IntArray type (see Int Arrays part).
+The code generation begins with the generation of some headers for the LLVM-IR files. These are the Module Identifier, the target datalayout which specifies the size in bits of common types (for example i32, integer 32 bits, takes 32 bits) and the target triple which is the target architecture, vendor, operating system and, eventually, environment (in order to generate native code later). Headers also include structures declarations for the List type (see memory management part) and the IntArray type (see Int Arrays part).
 
-Then we generate the class headers, i.e. the structures and vtable global variables for all classes (See object orientation part). Following all structures declarations comes the definition of all functions from all classes. Then comes the main function (no structures is generated for the main object).
+Then we generate the class headers, i.e. the structures and vtable global variables for all classes (See object orientation part). Following all structures declarations comes the definition of all functions from all classes. Then comes the main function (no structures needs to be generated for the main object).
 
 Finally declarations of C standard library functions(malloc, printf, strlen, ...) and some helper functions written directly in LLVM-IR (concatString, concatStringInt, List\$add, ...) are included at the end of a LLVM-IR file.
 
@@ -29,7 +29,7 @@ The first consequence of this form is to force us to have a convention when comp
 a = expr
 \end{lstlisting}
 
-Let $[ ]$ denote compilation operator:
+Let $[ ... ]$ denote compilation operator:
 \begin{lstlisting}
 [ a = expr ] = 
     // This should as a last instruction put
@@ -79,7 +79,7 @@ Now to call $m_1$ on object $o$, we have simply to call $o.vtable.m_1()$.
 \subsubsection{Inheritance}
 A class $D$ which extends from $C$ with new fields $g_1, ..., g_k$ and new methods $n_1, ..., n_l$ also generates the same types of structures but adds elements from $C$. $D\$vtable$ first has the same function pointers as $C\$vtable$ and then adds $D$ new methods at the end.
 
- Therefore $D\$vtable$ will contains first function pointers with signatures of $m_1, ..., m_m$ and then of $n_1, ..., n_l$. This way a $D\$vtable$ can be cast to a $C\$vtable$ because the of the order of elements in the structure. For example a code like $C$ $c$ = new $D()$; $c.m1()$ will make such a cast.
+ Therefore $D\$vtable$ will contains first function pointers with signatures of $m_1, ..., m_m$ and then of $n_1, ..., n_l$. This way a $D\$vtable$ can be cast to a $C\$vtable$ because the of the order of elements in the structure. For example a code like $C c = new D(); c.m1()$ will make such a cast.
 
 The global variable $D\$gvtable$ will be of type $D\$vtable$ and will have its fields set to the function of $C$ $m1, ..., m_m$ for the function pointers inherited by $C$ and the functions of $D$ $n_1, ..., n_l$ for the new methods (no polymorphism/method overrriding for now).
 
