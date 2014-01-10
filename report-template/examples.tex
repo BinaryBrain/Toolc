@@ -1,0 +1,113 @@
+As an introductory example, a detailed compiled version of a factorial program written in Tool is given. As LLVM-IR, like other assembly languages, results in long code, this example is simple and not complete. Further difficulties like object-orientation or static single assignment will be detailed later in the text.
+
+One Tool code for factorial function:
+\begin{lstlisting}
+def computeFactorial(num : Int) : Int = {
+        var num_aux : Int;
+        if (num < 0 || num == 1)
+            num_aux = 1;
+        else
+            num_aux = num * 
+		(this.computeFactorial(num - 1));
+        return num_aux;
+    }
+\end{lstlisting}
+and its compiled version (lines beginning with ";" are comments):
+\begin{verbatim}
+define i32 @Fact$computeFactorial(%struct.Fact* 
+        %this, i32 %\_num) nounwind ssp
+    
+    ; Store the argument in a pointer
+    %num = alloca i32, align 4
+    store i32 %\_num, i32* %num, align 4
+
+    ; var num_aux: Int
+    %num\_aux = alloca i32, align 4
+
+    ; %1 = num
+    %1 = load i32* %num, align 4
+    ; %3 = 0
+    %2 = alloca i32, align 4
+    store i32 0, i32* %2, align 4
+    %3 = load i32* %2, align 4
+    ; %4 = num < 0
+    %4 = icmp slt i32 %1, %3
+    br label %5
+    
+; <label>: %5
+    ; Short-circuiting OR if num < 0
+    br i1 %4, label %12, label %6
+    
+; <label>: %6
+    ; %7 = num
+    %7 = load i32* %num, align 4
+    ; %9 = 1
+    %8 = alloca i32, align 4
+    store i32 1, i32* %8, align 4
+    %9 = load i32* %8, align 4
+    ; %10 = (num == 1)
+    %10 = icmp eq  i32 %7, %9
+    br label %11
+    
+; <label>: %11
+    br label %12
+    
+; <label>: %12
+    ; solve short-circuiting with PHI function
+    ; that decides which value to give to %13
+    ; based on the branch we are coming from
+    %13 = phi i1 [ true, %5 ], [ %10, %11 ]
+
+    ; if branching
+    br i1 %13, label %14, label %17
+    
+; <label>: %14
+    ; %16 = 1
+    %15 = alloca i32, align 4
+    store i32 1, i32* %15, align 4
+    %16 = load i32* %15, align 4
+    ; num_aux = 1
+    store i32 %16, i32* %num\_aux, align 4
+    br label %31
+    
+; <label>: %17
+    ; %18 = num
+    %18 = load i32* %num, align 4
+    ; %20 = this
+    %19 = alloca %struct.Fact*, align 8
+    store %struct.Fact* %this,%struct.Fact** 
+        %19, align 8
+    %20 = load %struct.Fact** %19, align 8
+    ; %21 = this
+    %21 = load i32* %num, align 4
+    ; %23 = 1
+    %22 = alloca i32, align 4
+    store i32 1, i32* %22, align 4
+    %23 = load i32* %22, align 4
+    ; %24 = num - 1
+    %24 = sub nsw i32 %21, %23
+    ; %26 = this.vtable
+    %25 = getelementptr inbounds 
+        %struct.Fact* %20, i32 0, i32 0
+    %26 = load %struct.Fact$vtable** %25, 
+        align 8
+    ; %28 = this.vtable.computeFactorial
+    %27 = getelementptr inbounds 
+        %struct.Fact$vtable* %26,i32 0,i32 0
+    %28 = load i32 (%struct.Fact*, i32)** 
+        %27, align 8
+    ; %29 = this.computeFactorial(num-1)
+    %29 = call i32 %28(%struct.Fact* 
+        %20, i32 %24)
+    ; %30 = num_aux 
+    ;   * this.computeFactorial(num-1)
+    %30 = mul nsw i32 %18, %29
+    ; update num_aux
+    store i32 %30, i32* %num\_aux, align 4
+    br label %31
+    
+; <label>: %31
+    ; return num_aux
+    %32 = load i32* %num\_aux, align 4
+    ret i32 %32
+\end{verbatim}

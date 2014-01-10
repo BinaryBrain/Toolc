@@ -8,6 +8,7 @@ class Test {
 	var array: Int[];
 	def run(): Bool = {
 		var size : Int;
+		var alias: Int[];
 		var t: Test;
 		
 		size = 3;
@@ -16,18 +17,20 @@ class Test {
 		array[1] = 5;
 		array[2] = 6;
 		
-		println(array[0]);
-		println(array[1]);
-		println(array[2]);
-		println(array.length);
+		alias = array;
+		
+		println(alias[0]);
+		println(alias[1]);
+		println(alias[2]);
+		println(alias.length);
 		
 		t = new Test();
-		println(this.otherTest(t));
 		
-		return true;
+		return false && this.otherTest();
 	}
 	
 	def otherTest(t: Test): Bool = {
+		println("Hello");
 		return true;
 	}
 }

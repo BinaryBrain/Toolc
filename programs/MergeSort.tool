@@ -10,6 +10,19 @@ object MergeSort {
 class MergeSorter {
     var bidule : Int;
 	var array : Int[];
+	
+	def arrayToString(array : Int[]) : String = {
+        var i : Int;
+        var str : String;
+        i = 0;
+        str = "| ";
+
+        while(i < array.length){
+            str = str + array[i] + " | ";
+            i = i + 1;
+        }
+        return str;
+     }
 
 	def mergeSort(a: Int[]) : Int = {
       array = a;
@@ -17,7 +30,7 @@ class MergeSorter {
       println(new Helper().arrayToString(array));
       bidule = this.recursive(0, array.length);
       println("sorted :");
-      println(new Helper().arrayToString(array));
+      println(this.arrayToString(array));
 
       return 0;
 	}

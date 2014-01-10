@@ -36,8 +36,8 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
       main + declarations
 
     // Print for debug purpose
-    println(code)
-    println(structMap)
+    //println(code)
+    //println(structMap)
 
     // output to file
     Some(new PrintWriter(prog.main.id.value + ".ll")).foreach { p => p.write(code); p.close }
@@ -520,7 +520,6 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
     }
 
     currentClass.argsType = currentClass.argsType ::: List(m.args.map(typeOf(_)))
-    println(currentClass.argsType)
     s
   }
 
@@ -605,9 +604,10 @@ object CodeGenerationLLVM extends Pipeline[Program, Unit] {
 
   def addStrConstant(str: String): Unit = {
     val indexOfNewElement = strConstants.size;
+    val strEscaped = str.foldLeft("")((acc, c) => if(c == '\\') acc + "\\\\" else acc + c)
     strConstants = strConstants :::
       List("@.str" + indexOfNewElement + " = private unnamed_addr constant " +
-        "[" + (str.length() + 1) + " x i8] c\"" + str + "\\00\"")
+        "[" + (str.length() + 1) + " x i8] c\"" + strEscaped + "\\00\"")
   }
 
   def ancientReg: String = {

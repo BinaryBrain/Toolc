@@ -1,0 +1,91 @@
+\subsection{Static Single Assignment Form}
+As an intermediate representation (IR), LLVM-IR has an infinite number of registers (named \%\textless regName\textgreater ) but a register can only be assigned once. This last property is what is called the Static Single Assignment Form (SSA).
+
+Therefore, a code like
+\begin{lstlisting}
+%x = 1;
+%x = 2;
+%y = x;
+\end{lstlisting}
+
+should be for example translated as
+\begin{lstlisting}
+%x = 1;
+%x2 = 2;
+%y = x2;
+\end{lstlisting}
+
+The first consequence of this form is to force us to have a convention when compiling expressions of unknown size, that will therefore use an unknown number of registers: the value of the expression should be stored in the last register used. For example, an assignment in Tool:
+\begin{lstlisting}
+a = expr
+\end{lstlisting}
+
+Let $[ ]$ denote compilation operator:
+\begin{lstlisting}
+[ a = expr ] = 
+    // This should as a last instruction put
+    // expr value in a fresh register
+    [ expr ]
+     // So that this instruction know where
+     // the value is (last register used)
+    store typeOfExpr %freshRegister, typeOfA* %a
+\end{lstlisting}
+
+A second consequence is about the branching structures which implies a PHI instruction. Let's consider a non-SSA code:
+\begin{lstlisting}
+if(z) { x = 1; } 
+else { x = 2; }
+y = x;
+\end{lstlisting}
+
+Its SSA version:
+\begin{lstlisting}
+if(%z) { %x1 = 1; } 
+else { %x2 = 2; }
+%y = %x???; // Which register to use ?
+\end{lstlisting}
+
+This problem can be handled in two ways. The first one is to use pointers and store values in memory, as memory is not in SSA in LLVM:
+\begin{lstlisting}
+if(%z) { store i32 1, i32* %x } // %x is now a pointer
+else { store i32 2, i32* %x }
+%y = load i32* %x; // load from memory
+\end{lstlisting}
+
+The other way is to use the PHI instruction which is a native LLVM instruction. It decides which register to take based on the branch we are coming from:
+\begin{lstlisting}
+if(%z) { %x1 = 1; } 
+else { %x2 = 2; }
+%y = phi [ %x1, %ifTrueLabel ], [ %x2, %ifFalseLabel];
+\end{lstlisting}
+
+\subsection{Object-Orientation}
+\subsubsection{Object Layout}
+A class $C$ with fields $f1, ..., f_n$ and methods $m_1, m_m$ will be compiled to two structures: The first one is $C\$vtable$ containing $m$ function pointers with same signatures as methods $m_1, ..., m_m$. A global variable $C\$gvtable$ of type $C\$vtable$ is also generated. His elements are set to $m_1, ..., m_m$. The second structure is the structure $C$ which will have as a first element a $C\$vtable$ structure and then all $f_1, ..., f_n$ fields.
+
+Then the methods code are compiled into LLVM methods named $C\$m_1, ..., C\$m_m$ and a new function $new\$C$ is also generated. Its goal is to malloc a new object $o$ of type $C$ and  set $o.vtable$ to $C\$gvtable$ (Dynamic dispatch).
+
+Now to call $m_1$ on object $o$, we have simply to call $o.vtable.m_1()$.
+
+\subsubsection{Inheritance}
+A class $D$ which extends from $C$ with new fields $g_1, ..., g_k$ and new methods $n_1, ..., n_l$ also generates the same types of structures but adds elements from $C$. $D\$vtable$ first has the same function pointers as $C\$vtable$ and then adds $D$ new methods at the end.
+
+ Therefore $D\$vtable$ will contains first function pointers with signatures of $m_1, ..., m_m$ and then of $n_1, ..., n_l$. This way a $D\$vtable$ can be cast to a $C\$vtable$ because the of the order of elements in the structure. For example a code like $C$ $c$ = new $D()$; $c.m1()$ will make such a cast.
+
+The global variable $D\$gvtable$ will be of type $D\$vtable$ and will have its fields set to the function of $C$ $m1, ..., m_m$ for the function pointers inherited by $C$ and the functions of $D$ $n_1, ..., n_l$ for the new methods (no polymorphism/method overrriding for now).
+
+The structure $D$ has as a first element a $D\$vtable$ and then in order the fields from $C$ $f_1, ..., f_n$ and the new fields $g_1, ..., g_k$. Again the order of elements will allow a cast to $C$ structure in a code like $C$ $c$ = new $D()$.
+
+Finally $D\$n_1, ..., D\$n_l$ codes are compiled and the $new\$D$ function must malloc a new object of type $D$ and set its vtable to $D\$gvtable$.
+
+\subsubsection{Polymorphism/Method overriding}
+If the class $D$ overrides methods $m_i$ from $C$, then $D\$m_i$ will be generated and the only thing we have to do is to change in $D\$gvtable$ the function pointer which previously pointed to $C\$m_i$ and make it points to $D\$m_i$.
+
+\subsection{Println and String/Integers concatenation}
+In order to print strings, we use the printf function from the C standard library. Concatenate strings and/or integers was a bit more involved since no standard functions implements this functionality. We simply implemented these functions in C, compiled them to LLVM-IR using the clang compiler and packaged these with every compiled Tool code.
+
+\subsection{Memory Management}
+For allocation of objects on the heap, we use malloc from the C standard library.
+To avoid memory leaks at the end of the program (for example reported by valgrind), we have put in place a simple system for freeing memory allocated. Each time we malloc an object, we put a pointer to this object in a global linked-list. At the end of the program (last line before return of the function main), we traverse the list and free all pointers.
+
+
