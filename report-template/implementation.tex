@@ -7,6 +7,8 @@ Finally declarations of C standard library functions(malloc, printf, strlen, ...
 
 The compilation of a function follows the pattern seen in the course with two scala functions "compileExpression" and "compileStatement".
 
+Note that we generate LLVM-IR by hand, i.e. we have not used the C/C++ API (difficult to interface with scala) nor have we used a Java/Scala library (available ones use LLVM-IR outdated versions)
+
 \subsection{Static Single Assignment Form}
 As an intermediate representation (IR), LLVM-IR has an infinite number of registers (named \%\textless regName\textgreater ) but a register can only be assigned once. This last property is what is called the Static Single Assignment Form (SSA).
 
