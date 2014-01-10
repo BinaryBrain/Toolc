@@ -13,9 +13,9 @@ Example compiled tool program
 In each example directory, you will find:
 
 * the tool source code
-* its compiled LLVM-IR version (obtained by our back-end)
+* its compiled LLVM-IR version for Linux 64 bits (obtained by our back-end)
 * an executable binary (Linux 64 bits)
-* an html page executing tool code in javascript using emscripten
+* an html page executing tool code in javascript using emscripten (all OSes)
 
 Compile Tool to LLVM-IR
 =======================
