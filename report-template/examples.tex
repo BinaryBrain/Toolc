@@ -18,6 +18,7 @@ define i32 @Fact$computeFactorial(%struct.Fact*
         %this, i32 %\_num) nounwind ssp
     
     ; Store the argument in a pointer
+    ; %num is of type i32*
     %num = alloca i32, align 4
     store i32 %\_num, i32* %num, align 4
 

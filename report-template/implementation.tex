@@ -1,3 +1,12 @@
+\subsection{Sketch of the implementation}
+The code generation begins with the generation of some headers for the LLVM-IR files. These are the Module Identifier, the target datalayout which specifies the size in bits of common types (for example i32, integer 32 bits, takes 32 bits) and the target triple which is the target computer and operating systems (in order to generate native code later). Headers also include structures declarations for the List type (see memory management part) and the IntArray type (see Int Arrays part).
+
+Then we generate the class headers, i.e. the structures and vtable global variables for all classes (See object orientation part). Following all structures declarations comes the definition of all functions from all classes. Then comes the main function (no structures is generated for the main object).
+
+Finally declarations of C standard library functions(malloc, printf, strlen, ...) and some helper functions written directly in LLVM-IR (concatString, concatStringInt, List\$add, ...) are included at the end of a LLVM-IR file.
+
+The compilation of a function follows the pattern seen in the course with two scala functions "compileExpression" and "compileStatement".
+
 \subsection{Static Single Assignment Form}
 As an intermediate representation (IR), LLVM-IR has an infinite number of registers (named \%\textless regName\textgreater ) but a register can only be assigned once. This last property is what is called the Static Single Assignment Form (SSA).
 
@@ -15,7 +24,7 @@ should be for example translated as
 %y = x2;
 \end{lstlisting}
 
-The first consequence of this form is to force us to have a convention when compiling expressions of unknown size, that will therefore use an unknown number of registers: the value of the expression should be stored in the last register used. For example, an assignment in Tool:
+The first consequence of this form is to force us to have a convention when compiling expressions of unknown size that will therefore use an unknown number of registers: the value of the expression should be stored in the last register used. For example, an assignment in Tool:
 \begin{lstlisting}
 a = expr
 \end{lstlisting}
@@ -84,8 +93,12 @@ If the class $D$ overrides methods $m_i$ from $C$, then $D\$m_i$ will be generat
 \subsection{Println and String/Integers concatenation}
 In order to print strings, we use the printf function from the C standard library. Concatenate strings and/or integers was a bit more involved since no standard functions implements this functionality. We simply implemented these functions in C, compiled them to LLVM-IR using the clang compiler and packaged these with every compiled Tool code.
 
+\subsection{Int Arrays}
+Integers arrays of runtime-known length are not supported natively in LLVM-IR. As in C, we have to use a integer pointer and malloc the array of integers. Another problem was that, again as in C, you must always pass the array along with its size, otherwise one does not know where the array ends (this problem does not arise with strings as the null byte ends a string). To solve this little inconvenience, we designed a structure "IntArray" that packs together the integer pointer (the array) and its size (an integer). We also implemented some methods for this structure as for example IntArray\$Length or IntArray\$AssignAtIndex. In fact we add an new class to every LLVM-IR we compile.
+
 \subsection{Memory Management}
 For allocation of objects on the heap, we use malloc from the C standard library.
 To avoid memory leaks at the end of the program (for example reported by valgrind), we have put in place a simple system for freeing memory allocated. Each time we malloc an object, we put a pointer to this object in a global linked-list. At the end of the program (last line before return of the function main), we traverse the list and free all pointers.
 
-
+\subsection{Name collisions}
+By adding new structures and functions that the original Tool programmer ignore (List for memory management, IntArray or simply vtable structures) we face name collisions i.e. the Tool programmer could have given a name such as IntArray to an object and the latter will collide with our hidden class. To solve this problem, we used characters in such class names and functions definition that are forbidden in Tool identifiers (for example dot or dollar signs). C Standard library functions such as strlen were not changed but they cannot cause a collision because any function named strlen of a Tool program will have the form $ClassName\$strlen$ and a class named strlen will lead to a structure named $struct.className$ where the dot is forbidden in Tool.
